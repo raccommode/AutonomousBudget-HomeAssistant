@@ -1,0 +1,55 @@
+{
+  "title": "Autonomous Budget",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Votre argent, à votre rythme",
+        "description": "Choisissez les réglages par défaut de vos budgets. Chaque budget peut définir sa période et sa date de paie, de façon facultative. Laissez la date de référence vide pour utiliser la date du jour.",
+        "data": {
+          "currency": "Devise par défaut",
+          "period": "Période budgétaire par défaut",
+          "anchor": "Date de référence par défaut (facultative)"
+        }
+      }
+    },
+    "error": {
+      "invalid_settings": "Vérifiez la devise, la période et la date de référence."
+    },
+    "abort": {
+      "already_configured": "Autonomous Budget est déjà configuré. Créez d’autres budgets depuis le menu latéral."
+    }
+  },
+  "selector": {
+    "period": {
+      "options": {
+        "daily": "Tous les jours",
+        "weekly": "Toutes les semaines",
+        "biweekly": "Toutes les deux semaines",
+        "monthly": "Tous les mois",
+        "yearly": "Tous les ans"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "income": {
+        "name": "Revenus"
+      },
+      "expenses": {
+        "name": "Dépenses"
+      },
+      "balance": {
+        "name": "Restant"
+      },
+      "investment": {
+        "name": "Revenus d’investissement"
+      },
+      "mandatory": {
+        "name": "Revenus obligatoires"
+      },
+      "optional": {
+        "name": "Revenus facultatifs"
+      }
+    }
+  }
+}

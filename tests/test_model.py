@@ -100,9 +100,9 @@ def test_actual_cashflow_with_mixed_currencies_and_categories():
     assert result["totals"] == {
         "income": "2000.00",
         "expenses": "1013.50",
-        "mandatory": "800.00",
-        "investment": "200.00",
-        "optional": "13.50",
+        "mandatory": "2000.00",
+        "investment": "0.00",
+        "optional": "0.00",
         "balance": "986.50",
     }
     assert result["items"][-1]["period_amount"] == "0.00"
@@ -136,7 +136,7 @@ def test_invalid_amounts_rejected(value):
     [
         {"currency": "FAKE"},
         {"direction": "out"},
-        {"category": "other"},
+        {"direction": "income", "category": "other"},
         {"recurrence": "never"},
         {"name": "   "},
         {"renewal_date": "2026-02-30"},
@@ -166,3 +166,39 @@ def test_currency_precision_and_round_half_up():
         date(2024, 1, 1),
     )
     assert result["totals"]["expenses"] == "0.06"
+
+
+def test_next_due_includes_a_first_payment_more_than_a_year_away():
+    result = summarize(
+        {"id": "future", "name": "Future", "currency": "CAD", "items": [entry(renewal_date="2029-01-01")]},
+        {"period": "biweekly", "anchor": "2026-08-28"},
+        date(2026, 9, 2),
+    )
+    assert result["items"][0]["next_due"] == "2029-01-01"
+    assert result["totals"]["expenses"] == "0.00"
+
+
+def test_expenses_have_no_category_and_income_requires_one():
+    assert entry()["category"] is None
+    assert entry(category=None)["category"] is None
+    assert entry(direction="income", category="investment")["category"] == "investment"
+    with pytest.raises(ValidationError):
+        entry(direction="income", category=None)
+
+
+def test_optional_per_budget_period_and_anchor_overrides():
+    from custom_components.autonomous_budget.model import validate_budget
+
+    defaults = {"period": "biweekly", "anchor": "2026-08-28"}
+    base = validate_budget({"name": "Flexible", "currency": "CAD"}) | {"id": "flex", "items": []}
+    inherited = summarize(base, defaults, date(2026, 9, 2))
+    assert base["period"] is None and base["anchor"] is None
+    assert inherited["effective_period"] == "biweekly"
+    assert inherited["period_start"] == "2026-08-28"
+    own = summarize(base | {"period": "monthly", "anchor": "2026-01-01"}, defaults, date(2026, 9, 2))
+    assert own["effective_period"] == "monthly"
+    assert own["period_start"] == "2026-09-01"
+    assert own["period_end"] == "2026-10-01"
+    date_only = summarize(base | {"anchor": "2026-09-01"}, defaults, date(2026, 9, 2))
+    assert date_only["effective_period"] == "biweekly"
+    assert date_only["period_start"] == "2026-09-01"

@@ -10,7 +10,9 @@ show_categories: true
 show_upcoming: false
 ```
 
-The card follows the current period even when the sidebar is browsing a past or future period. Its data comes from the authenticated integration subscription, independently of entity naming.
+The card follows the selected budget’s own pay period (or its inherited defaults) even when the sidebar is browsing a past or future period. Its data comes from the authenticated integration subscription, independently of entity naming.
+
+`show_categories` controls the three **income** categories. Expenses are not categorized. Card labels, dates, and amounts follow the Home Assistant profile language (English or French).
 
 ## A built-in glance card
 

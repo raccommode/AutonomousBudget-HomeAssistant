@@ -21,7 +21,9 @@ class AutonomousBudgetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             try:
-                data = validate_settings(user_input)
+                data = validate_settings(
+                    user_input | {"anchor": user_input.get("anchor") or dt_util.now().date().isoformat()}
+                )
             except ValidationError:
                 errors["base"] = "invalid_settings"
             else:
@@ -38,7 +40,7 @@ class AutonomousBudgetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required("period", default="biweekly"): selector.SelectSelector(
                         selector.SelectSelectorConfig(options=list(PERIODS), translation_key="period")
                     ),
-                    vol.Required("anchor", default=dt_util.now().date().isoformat()): selector.DateSelector(),
+                    vol.Optional("anchor"): selector.DateSelector(),
                 }
             ),
             errors=errors,

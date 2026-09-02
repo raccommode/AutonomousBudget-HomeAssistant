@@ -23,7 +23,8 @@ async def main():
         for _ in range(120):
             try:
                 async with session.get(BASE + "/api/onboarding") as response:
-                    if response.status == 200:
+                    if response.status == 200 or (response.status == 404 and TOKEN_FILE.exists()):
+                        onboarded = response.status == 404
                         break
             except aiohttp.ClientError:
                 pass
@@ -64,7 +65,7 @@ async def main():
         TOKEN_FILE.write_text(json.dumps(tokens))
         TOKEN_FILE.chmod(0o600)
         headers = {"Authorization": "Bearer " + tokens["access_token"]}
-        for step in ("core_config", "analytics", "integration"):
+        for step in () if onboarded else ("core_config", "analytics", "integration"):
             async with session.post(
                 BASE + "/api/onboarding/" + step,
                 json={"client_id": CLIENT, "redirect_uri": CLIENT} if step == "integration" else {},

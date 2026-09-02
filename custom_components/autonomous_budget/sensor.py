@@ -13,9 +13,9 @@ METRICS = {
     "income": ("Income", "mdi:arrow-down-left"),
     "expenses": ("Expenses", "mdi:arrow-up-right"),
     "balance": ("Remaining", "mdi:wallet-outline"),
-    "investment": ("Investment", "mdi:chart-line"),
-    "mandatory": ("Mandatory", "mdi:shield-check-outline"),
-    "optional": ("Optional", "mdi:sparkles"),
+    "investment": ("Investment income", "mdi:chart-line"),
+    "mandatory": ("Mandatory income", "mdi:shield-check-outline"),
+    "optional": ("Optional income", "mdi:sparkles"),
 }
 
 
@@ -63,7 +63,8 @@ class BudgetSensor(SensorEntity):
         self.budget_id = budget_id
         self.metric = metric
         self._attr_unique_id = f"{budget_id}_{metric}"
-        self._attr_name, self._attr_icon = METRICS[metric]
+        self._attr_translation_key = metric
+        self._attr_icon = METRICS[metric][1]
         self._snapshot = None
         self._refresh()
 
@@ -103,7 +104,8 @@ class BudgetSensor(SensorEntity):
             "budget_id": self.budget_id,
             "period_start": self._snapshot["period_start"],
             "period_end": self._snapshot["period_end"],
-            "period": self.store.data["settings"]["period"],
+            "period": self._snapshot["effective_period"],
+            "reference_date": self._snapshot["effective_anchor"],
         }
 
     async def async_added_to_hass(self):

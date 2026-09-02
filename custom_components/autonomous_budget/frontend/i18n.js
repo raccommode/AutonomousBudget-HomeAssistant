@@ -1,0 +1,103 @@
+/** English source strings and French UI translations. User content is excluded. */
+const fr = {
+  "Use default": "Utiliser le réglage par défaut",
+  "Daily": "Tous les jours", "Weekly": "Toutes les semaines", "Every two weeks": "Toutes les deux semaines",
+  "Monthly": "Tous les mois", "Quarterly": "Tous les trois mois", "Yearly": "Tous les ans", "One time": "Une seule fois",
+  "Investment": "Investissement", "Mandatory": "Obligatoire", "Optional": "Facultatif", "Income": "Revenus", "Expense": "Dépense", "Expenses": "Dépenses",
+  "Export": "Exporter", "Export budgets": "Exporter les budgets", "Settings": "Paramètres", "View only": "Lecture seule",
+  "Open Home Assistant menu": "Ouvrir le menu Home Assistant", "A little clarity, every payday": "Un peu de clarté à chaque paie",
+  "Your money, in view.": "Votre argent, en un regard.", "Make room for what matters. Plan the rest.": "Gardez une place pour l’essentiel. Planifiez le reste.",
+  "New budget": "Nouveau budget", "Budgets": "Budgets", "A fresh start for your finances": "Un nouveau départ pour vos finances",
+  "Create your first budget, then add your income, everyday bills, and future plans.": "Créez votre premier budget, puis ajoutez vos revenus, vos factures et vos projets.",
+  "Create your first budget": "Créer votre premier budget", "Ask a Home Assistant administrator to create a budget.": "Demandez à un administrateur Home Assistant de créer un budget.",
+  "Local to your home. In sync with your life.": "Chez vous, au rythme de votre vie.", "Current period": "Période actuelle", "Past period projection": "Prévision d’une période passée",
+  "Upcoming period projection": "Prévision d’une période à venir", "Scheduled cash flow": "Mouvements d’argent prévus", "Previous period": "Période précédente",
+  "Next period": "Période suivante", "Today": "Aujourd’hui", "Period totals": "Totaux de la période", "Left after expenses": "Reste après les dépenses",
+  "Planned expenses exceed income this period": "Les dépenses prévues dépassent les revenus de la période", "Income minus everything you have planned": "Les revenus, moins toutes les dépenses prévues",
+  "Expected income": "Revenus prévus", "Planned expenses": "Dépenses prévues", "All payments due this period": "Tous les paiements prévus dans la période",
+  "All your income and commitments": "Tous vos revenus et engagements", "Add budget to a dashboard": "Ajouter le budget à un tableau de bord", "Dashboard card": "Carte de tableau de bord",
+  "Edit budget": "Modifier le budget", "Add entry": "Ajouter une entrée", "Filter entries": "Filtrer les entrées", "All entries": "Toutes les entrées",
+  "Entry": "Entrée", "Amount": "Montant", "Next due": "Prochaine échéance", "This period": "Cette période", "Edit": "Modifier", "Paused": "En pause",
+  "No entries in this view": "Aucune entrée dans cette vue", "Give your money a plan": "Donnez une direction à votre argent",
+  "Try another filter or add a new entry.": "Essayez un autre filtre ou ajoutez une entrée.", "Start with a paycheck, a subscription, or a bill. Every entry has its own schedule.": "Commencez par une paie, un abonnement ou une facture. Chaque entrée a son propre calendrier.",
+  "Add an entry": "Ajouter une entrée", "Where it comes from": "D’où viennent les revenus", "Expected income by category": "Revenus prévus par catégorie",
+  "Coming up": "À venir", "Totals count payments due in the selected period.": "Les totaux comptent les échéances de la période sélectionnée.",
+  "Nothing else is due in this period.": "Aucune autre échéance dans cette période.", "Nothing else is due this period.": "Aucune autre échéance dans cette période.",
+  "Your plan follows actual due dates. Monthly bills appear in the pay period when they renew. These are projections, not cleared bank transactions.": "Votre budget suit les dates d’échéance. Les factures mensuelles figurent dans la période de leur renouvellement. Ces montants sont des prévisions, pas des transactions bancaires confirmées.",
+  "Close dialog": "Fermer la fenêtre", "Save changes": "Enregistrer", "Cancel": "Annuler", "Budget settings": "Paramètres des budgets",
+  "These defaults apply when a budget has no pay schedule of its own. Each budget can optionally override the period and reference date. The currency below is the default for new budgets.": "Ces réglages s’appliquent aux budgets sans calendrier de paie personnalisé. Chaque budget peut définir sa période et sa date de référence. La devise ci-dessous est utilisée par défaut pour les nouveaux budgets.",
+  "Default currency": "Devise par défaut", "Budget period": "Période budgétaire", "Default reference date": "Date de référence par défaut",
+  "Create a budget": "Créer un budget", "Budget name": "Nom du budget", "Currency": "Devise", "Pay period (optional)": "Période de paie (facultative)",
+  "Payday / reference date (optional)": "Date de paie ou de référence (facultative)", "Create budget": "Créer le budget", "Delete budget": "Supprimer le budget",
+  "e.g. Everyday life": "Ex. : Vie quotidienne", "Entry name": "Nom de l’entrée", "e.g. Netflix, rent, or paycheck": "Ex. : Netflix, loyer ou paie",
+  "Money flow": "Sens du mouvement", "Income category": "Catégorie de revenu", "Repeats": "Répétition", "First due / renewal date": "Première échéance ou renouvellement",
+  "End date (optional, inclusive)": "Date de fin (facultative, incluse)", "Active entry": "Entrée active", "Pause to exclude all occurrences.": "Mettez en pause pour exclure toutes les échéances.",
+  "Edit entry": "Modifier l’entrée", "Delete entry": "Supprimer l’entrée", "Delete entry?": "Supprimer cette entrée ?", "Delete budget?": "Supprimer ce budget ?",
+  "Delete": "Supprimer", "and all its entries": "et toutes ses entrées", "? This cannot be undone.": "? Cette action est irréversible.",
+  "Your budget, on any dashboard": "Votre budget sur tous vos tableaux de bord", "The card is already registered with Home Assistant.": "La carte est déjà enregistrée dans Home Assistant.",
+  "Use the visual editor": "Utiliser l’éditeur visuel", "Edit a dashboard → Add card → search for": "Modifiez un tableau de bord → Ajouter une carte → recherchez",
+  ", then select this budget.": ", puis sélectionnez ce budget.", "Or paste this YAML": "Ou collez ce YAML", "Done": "Terminé",
+  "Six native sensors are also available under Settings → Devices & services → Autonomous Budget.": "Six capteurs sont aussi disponibles dans Paramètres → Appareils et services → Autonomous Budget.",
+  "Deleted": "Suppression effectuée", "Budget saved": "Budget enregistré", "Could not save. Please try again.": "Enregistrement impossible. Réessayez.",
+  "Loading your budgets…": "Chargement de vos budgets…", "Loading budgets…": "Chargement des budgets…", "Retry": "Réessayer",
+  "Autonomous Budget is unavailable. Check the integration in Settings.": "Autonomous Budget est indisponible. Vérifiez l’intégration dans les paramètres.",
+  "Could not load budgets. Check the integration and reload this page.": "Chargement impossible. Vérifiez l’intégration et rechargez la page.",
+  "Autonomous Budget is not loaded.": "Autonomous Budget n’est pas chargé.", "This budget no longer exists. Choose another budget in the card editor.": "Ce budget n’existe plus. Choisissez un autre budget dans l’éditeur de carte.",
+  "Create your first budget in the Autonomous Budget sidebar.": "Créez votre premier budget dans le menu Autonomous Budget.", "Scheduled for this period": "Prévu pour cette période",
+  "Income by category": "Revenus par catégorie", "Open Autonomous Budget": "Ouvrir Autonomous Budget", "Budget": "Budget", "First available budget": "Premier budget disponible",
+  "Title (optional)": "Titre (facultatif)", "Show income categories": "Afficher les catégories de revenus", "Show upcoming payments": "Afficher les prochaines échéances",
+  "Budgets changed in another session. Close this dialog and try again.": "Les budgets ont été modifiés dans une autre session. Fermez cette fenêtre et réessayez.",
+  "Budget no longer exists.": "Ce budget n’existe plus.", "Entry no longer exists.": "Cette entrée n’existe plus.",
+  "A budget with entries cannot change currency. Create a new budget instead.": "La devise d’un budget contenant des entrées ne peut pas être modifiée. Créez un nouveau budget.",
+  "A maximum of 50 budgets is supported.": "Vous pouvez créer jusqu’à 50 budgets.", "A maximum of 500 entries per budget is supported.": "Vous pouvez créer jusqu’à 500 entrées par budget.",
+  "Could not save budgets. Check available disk space and try again.": "Enregistrement impossible. Vérifiez l’espace disque disponible et réessayez.",
+  "Use a date between 1900-01-01 and 2200-12-31.": "Choisissez une date entre le 01/01/1900 et le 31/12/2200.",
+  "Exchange rate must be positive, with at most 8 decimal places.": "Le taux de change doit être positif et avoir au maximum 8 décimales.",
+  "End date cannot precede the first due date.": "La date de fin ne peut pas précéder la première échéance.", "Active must be true or false.": "Le statut actif doit être vrai ou faux.",
+};
+
+export function translate(source, language) {
+  if (!String(language).toLowerCase().startsWith("fr")) return source;
+  const text = source.trim();
+  let result = fr[text];
+  if (result === undefined && text.includes(" · ")) result = text.split(" · ").map((part) => translate(part, language)).join(" · ");
+  if (result === undefined) {
+    const patterns = [
+      [/^and all its entries\? This cannot be undone\.$/, () => "et toutes ses entrées ? Cette action est irréversible."],
+      [/^(\d+) scheduled payments this period$/, (_, count) => `${count} paiement${count === "1" ? "" : "s"} prévu${count === "1" ? "" : "s"} cette période`],
+      [/^(\d+) due$/, (_, count) => `${count} échéance${count === "1" ? "" : "s"}`],
+      [/^(\d+)% of income$/, (_, count) => `${count} % des revenus`],
+      [/^(\d+) active entries$/, (_, count) => `${count} entrées actives`],
+      [/^(\d+) active entries · Totals count payments due in the selected period\.$/, (_, count) => `${count} entrées actives · Les totaux comptent les échéances de la période sélectionnée.`],
+      [/^Exchange rate to (\w+)$/, (_, currency) => `Taux de change vers ${currency}`],
+      [/^1 unit of this entry's currency equals this many (\w+)\. Rates are set manually\.$/, (_, currency) => `1 unité de la devise de cette entrée vaut ce montant en ${currency}. Le taux est défini manuellement.`],
+      [/^Leave these fields blank to use the defaults: (.+), aligned to (.+)\. A pay schedule is optional\.$/, (_, period, day) => `Laissez ces champs vides pour utiliser les réglages par défaut : ${translate(period, language)}, à partir du ${day}. Le calendrier de paie est facultatif.`],
+      [/^Edit (.+)$/, (_, name) => `Modifier ${name}`],
+      [/^(\w+) amounts allow (\d+) decimal places\.$/, (_, currency, count) => `Les montants en ${currency} acceptent ${count} décimales.`],
+      [/^Choose a valid (.+)\.$/, (_, name) => `Choisissez une valeur valide pour ${translate(name[0].toUpperCase() + name.slice(1), language).toLowerCase()}.`],
+      [/^(Amount|Exchange rate) must be between 0 and (.+)\.$/, (_, name, max) => `${name === "Amount" ? "Le montant" : "Le taux de change"} doit être compris entre 0 et ${max}.`],
+      [/^(Budget name|Entry name) must contain 1–(\d+) characters\.$/, (_, name, max) => `${name === "Budget name" ? "Le nom du budget" : "Le nom de l’entrée"} doit contenir entre 1 et ${max} caractères.`],
+    ];
+    for (const [pattern, replace] of patterns) {
+      if (pattern.test(text)) { result = text.replace(pattern, replace); break; }
+    }
+  }
+  if (result === undefined) return source;
+  return source.replace(text, result);
+}
+
+/** Translate only UI text. Never alter user names, input values, code, or styles. */
+export function localize(root, language, originals) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (!node.parentElement || node.parentElement.closest('style,script,pre,[translate="no"]')) continue;
+    if (!originals.has(node)) originals.set(node, node.textContent);
+    node.textContent = translate(originals.get(node), language);
+  }
+  for (const element of root.querySelectorAll('[aria-label],[title],[placeholder]')) {
+    if (element.closest('[translate="no"]')) continue;
+    if (!originals.has(element)) originals.set(element, Object.fromEntries(["aria-label", "title", "placeholder"].filter((key) => element.hasAttribute(key)).map((key) => [key, element.getAttribute(key)])));
+    for (const [key, value] of Object.entries(originals.get(element))) element.setAttribute(key, translate(value, language));
+  }
+}

@@ -65,15 +65,18 @@ def validate_settings(data: dict) -> dict:
 
 
 def validate_budget(data: dict) -> dict:
-    """Normalize budget metadata; periods follow global settings."""
+    """Normalize metadata and optional per-budget pay schedule overrides."""
     return {
         "name": text(data.get("name"), "Budget name"),
         "currency": choice(data.get("currency"), CURRENCIES, "currency"),
+        "period": choice(data["period"], PERIODS, "pay period") if data.get("period") else None,
+        "anchor": parse_date(data["anchor"]).isoformat() if data.get("anchor") else None,
     }
 
 
 def validate_item(data: dict, budget_currency: str) -> dict:
     """Validate a recurring income or expense, including an explicit FX rate."""
+    direction = choice(data.get("direction"), ("income", "expense"), "direction")
     currency = choice(data.get("currency"), CURRENCIES, "currency")
     amount = decimal(data.get("amount"), "Amount")
     if amount != quantize(amount, currency):
@@ -90,8 +93,8 @@ def validate_item(data: dict, budget_currency: str) -> dict:
         raise ValidationError("End date cannot precede the first due date.")
     return {
         "name": text(data.get("name"), "Entry name"),
-        "direction": choice(data.get("direction"), ("income", "expense"), "direction"),
-        "category": choice(data.get("category"), CATEGORIES, "category"),
+        "direction": direction,
+        "category": choice(data.get("category"), CATEGORIES, "income category") if direction == "income" else None,
         "amount": str(quantize(amount, currency)),
         "currency": currency,
         "exchange_rate": str(rate),
@@ -157,7 +160,9 @@ def occurrences(item: dict, start: date, end: date) -> list[date]:
 
 def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dict:
     """Summarize scheduled cash flow; this is not a bank account balance."""
-    start, end = period_bounds(today, settings["period"], date.fromisoformat(settings["anchor"]), offset)
+    period = budget.get("period") or settings["period"]
+    anchor = budget.get("anchor") or settings["anchor"]
+    start, end = period_bounds(today, period, date.fromisoformat(anchor), offset)
     currency = budget["currency"]
     totals = dict.fromkeys(("income", "expenses", *CATEGORIES), Decimal(0))
     entries = []
@@ -167,10 +172,11 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
         converted = quantize(Decimal(item["amount"]) * Decimal(item["exchange_rate"]), currency)
         amount = converted * len(dates)
         totals["income" if item["direction"] == "income" else "expenses"] += amount
-        if item["direction"] == "expense":
+        if item["direction"] == "income" and item.get("category") in CATEGORIES:
             totals[item["category"]] += amount
         # Include next renewal even when it falls outside the selected period.
-        upcoming = occurrences(item, max(today, start), max(today, start) + timedelta(days=367))
+        next_start = max(today, start, date.fromisoformat(item["renewal_date"]))
+        upcoming = occurrences(item, next_start, next_start + timedelta(days=367))
         entries.append(
             item
             | {
@@ -193,6 +199,8 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
     totals["balance"] = totals["income"] - totals["expenses"]
     return budget | {
         "items": entries,
+        "effective_period": period,
+        "effective_anchor": anchor,
         "period_start": start.isoformat(),
         "period_end": end.isoformat(),
         "period_last_day": (end - timedelta(days=1)).isoformat(),

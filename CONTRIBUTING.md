@@ -1,6 +1,6 @@
 # Contributing
 
-Code, documentation, issues, and user-facing strings are written in English. Use fictional names and amounts in tests and screenshots.
+Code, documentation, and issues are written in English. The UI supports English and French; keep both translations up to date. Use fictional names and amounts in tests and screenshots.
 
 ## Setup
 
@@ -49,7 +49,8 @@ The test instance may install Home Assistant's standard onboarding integrations.
 - `store.py`: Home Assistant storage, atomic writes, revision conflict checks, snapshots.
 - `websocket.py`: authenticated subscriptions and administrator-only mutations.
 - `sensor.py`: six native monetary sensors per budget, dynamic discovery and cleanup.
-- `frontend/`: native web components for the panel and dashboard card; no build step.
+- `frontend/`: native web components for the panel and dashboard card; no build step. `i18n.js` translates UI text, while `translate="no"` protects every user-provided name.
+- `translations/`: Home Assistant setup and entity translations in English and French.
 - `tests/`: calendar, currency, storage, authorization, and browser regression coverage.
 
 All runtime files must stay under `custom_components/autonomous_budget` so HACS can install them. Avoid remote runtime dependencies and avoid including financial entry names or amounts in logs.

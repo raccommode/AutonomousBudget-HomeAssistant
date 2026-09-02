@@ -1,13 +1,15 @@
+import { localize, translate } from "./i18n.js?v=0.1.0";
 /** Local-only shared UI primitives. No remote fonts, scripts, or trackers. */
 export const labels = {
+  "": "Use default",
   daily: "Daily", weekly: "Weekly", biweekly: "Every two weeks", monthly: "Monthly",
   quarterly: "Quarterly", yearly: "Yearly", once: "One time",
   investment: "Investment", mandatory: "Mandatory", optional: "Optional",
   income: "Income", expense: "Expense",
 };
 export const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-export const money = (value, currency) => new Intl.NumberFormat("en", { style: "currency", currency, currencyDisplay: "code" }).format(Number(value));
-export const dateLabel = (value, year = false) => value ? new Intl.DateTimeFormat("en", { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}) }).format(new Date(`${value}T12:00:00`)) : "—";
+export const money = (value, currency, language = "en") => new Intl.NumberFormat(language, { style: "currency", currency, currencyDisplay: "code" }).format(Number(value));
+export const dateLabel = (value, year = false, language = "en") => value ? new Intl.DateTimeFormat(language, { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}) }).format(new Date(`${value}T12:00:00`)) : "—";
 export const options = (values, selected) => values.map((value) => `<option value="${esc(value)}" ${value === selected ? "selected" : ""}>${esc(labels[value] || value)}</option>`).join("");
 const paths = {
   wallet: '<path d="M20 8V5a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v12H5a3 3 0 0 1-3-3V6m18 7h-5v4h5"/>',
@@ -35,14 +37,27 @@ export class BudgetLiveElement extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this.offset = 0;
     this._generation = 0;
+    this._originals = new WeakMap();
+    this._observer = new MutationObserver(() => {
+      this._observer.disconnect();
+      localize(this.shadowRoot, this.language, this._originals);
+      this._observer.observe(this.shadowRoot, { subtree: true, childList: true, characterData: true });
+    });
+    this._observer.observe(this.shadowRoot, { subtree: true, childList: true, characterData: true });
   }
   set hass(hass) {
+    const languageChanged = this._hass?.language !== hass.language;
     const changed = this._hass?.connection !== hass.connection;
     this._hass = hass;
     this.toggleAttribute("data-dark", Boolean(hass.themes?.darkMode));
     if (changed && this.isConnected) this.subscribe();
+    if (languageChanged && this.data) this.render();
   }
   get hass() { return this._hass; }
+  get language() { return this._hass?.language?.startsWith("fr") ? "fr" : "en"; }
+  money(value, currency) { return money(value, currency, this.language); }
+  dateLabel(value, year = false) { return dateLabel(value, year, this.language); }
+  t(value) { return translate(value, this.language); }
   connectedCallback() { if (this._hass) this.subscribe(); }
   disconnectedCallback() { this._generation++; this._unsubscribe?.(); this._unsubscribe = null; }
   async subscribe() {

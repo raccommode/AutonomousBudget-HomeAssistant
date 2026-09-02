@@ -172,8 +172,12 @@ async def main():
             assert "autonomous-budget" in panels
             states = await call({"type": "get_states"})
             sensors = [state for state in states if state["attributes"].get("budget_id")]
-            assert len(sensors) == 6 * len(snapshot["budgets"]), len(sensors)
-            assert all(state["state"] not in ("unknown", "unavailable") for state in sensors)
+            assert len(sensors) == 11 * len(snapshot["budgets"]), len(sensors)
+            assert all(
+                state["state"] not in ("unknown", "unavailable")
+                or (state["state"] == "unknown" and state["attributes"].get("metric") == "available_balance")
+                for state in sensors
+            )
             # A duplicate setup is rejected by the real config flow.
             async with session.post(
                 BASE + "/api/config/config_entries/flow",

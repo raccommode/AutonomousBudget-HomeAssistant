@@ -46,9 +46,10 @@ The test instance may install Home Assistant's standard onboarding integrations.
 ## Structure
 
 - `model.py`: validation, decimal amounts, anchored calendar periods, recurrence, projections.
+- `planning.py`: pay-period normalization, next renewals, and projected reserve installments.
 - `store.py`: Home Assistant storage, atomic writes, revision conflict checks, snapshots.
 - `websocket.py`: authenticated subscriptions and administrator-only mutations.
-- `sensor.py`: six native monetary sensors per budget, dynamic discovery and cleanup.
+- `sensor.py`: eleven native monetary sensors per budget, dynamic discovery and cleanup.
 - `frontend/`: native web components for the panel and dashboard card; no build step. `i18n.js` translates UI text, while `translate="no"` protects every user-provided name.
 - `translations/`: Home Assistant setup and entity translations in English and French.
 - `tests/`: calendar, currency, storage, authorization, and browser regression coverage.

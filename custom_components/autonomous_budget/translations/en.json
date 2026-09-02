@@ -49,6 +49,21 @@
       },
       "optional": {
         "name": "Optional income"
+      },
+      "planned_income": {
+        "name": "Income per pay period"
+      },
+      "planned_expenses": {
+        "name": "Expenses per pay period"
+      },
+      "planned_balance": {
+        "name": "Remaining per pay period"
+      },
+      "reserved": {
+        "name": "Projected reserve"
+      },
+      "available_balance": {
+        "name": "Available after reserves"
       }
     }
   }

@@ -6,11 +6,15 @@
 type: custom:autonomous-budget-card
 budget_id: YOUR_BUDGET_ID
 title: This payday
+view: plan
+show_reserves: true
 show_categories: true
 show_upcoming: false
 ```
 
 The card follows the selected budget’s own pay period (or its inherited defaults) even when the sidebar is browsing a past or future period. Its data comes from the authenticated integration subscription, independently of entity naming.
+
+`view: plan` (default) shows normalized amounts per pay period. `view: cashflow` shows actual scheduled payments. `show_reserves` (default `true`) adds today’s projected reserve and, when an account balance is configured, the available estimate. These options are available in the visual editor.
 
 `show_categories` controls the three **income** categories. Expenses are not categorized. Card labels, dates, and amounts follow the Home Assistant profile language (English or French).
 
@@ -30,6 +34,18 @@ entities:
     name: Left to spend
 ```
 
+## Reserve and available-balance card
+
+```yaml
+type: entities
+title: Money set aside
+entities:
+  - sensor.everyday_life_projected_reserve
+  - sensor.everyday_life_available_after_reserves
+```
+
+The available sensor is unknown until an account balance is entered. Reserve values are estimates based on the pay schedule, not recorded transfers. Account balances and credit owed are updated manually in **Edit budget**.
+
 ## Notify when a plan exceeds income
 
 ```yaml
@@ -37,7 +53,7 @@ alias: Budget plan exceeds income
 description: Notify when the current plan moves below zero.
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.everyday_life_remaining
+    entity_id: sensor.everyday_life_remaining_per_pay_period
     below: 0
 actions:
   - action: persistent_notification.create

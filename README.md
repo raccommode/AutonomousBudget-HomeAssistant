@@ -4,7 +4,7 @@
 
 **Your money, on your schedule. Right inside Home Assistant.**
 
-Create budgets, plan recurring income and expenses, and see what's left each payday.
+Create budgets, spread recurring commitments across paydays, and see what's left after planned reserves.
 
 [![CI](https://github.com/raccommode/AutonomousBudget-HomeAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/raccommode/AutonomousBudget-HomeAssistant/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/raccommode/AutonomousBudget-HomeAssistant)](https://github.com/raccommode/AutonomousBudget-HomeAssistant/releases)
@@ -24,8 +24,10 @@ Create budgets, plan recurring income and expenses, and see what's left each pay
 - **Your own rhythm.** Daily, weekly, every two weeks, monthly, or yearly. Each budget can optionally set its own pay period and payday. Leave them empty to use the global defaults; two weeks is the initial default.
 - **Income and expenses.** Every entry has a money-flow direction. Income has one of three categories: **Investment**, **Mandatory**, or **Optional**. Expenses have no category.
 - **Recurring commitments.** Add Netflix, rent, a paycheck, or a savings contribution with its amount, currency, renewal date, and frequency. One-time entries, end dates, and pausing are supported too.
-- **An honest view of each period.** See expected income, planned expenses, remaining money, income category totals, and upcoming payments. Browse previous and upcoming periods.
-- **Home Assistant dashboards.** A bundled visual card and six native monetary sensors per budget. No separate card download or manual resource registration.
+- **A plan for each payday.** Compare income and expenses on the same time scale, then switch to **Due dates** to see actual scheduled cash flow. Browse previous and upcoming periods.
+- **Progressive reserves.** See the projected amount set aside for each recurring expense, its next renewal, and completed / remaining pay periods.
+- **Optional available balance.** Enter an account balance and credit owed per budget to estimate what remains after projected reserves. Balances are manual and can be left empty.
+- **Home Assistant dashboards.** A bundled visual card and eleven native monetary sensors per budget. No separate card download or manual resource registration.
 - **Local storage.** Your budgets stay in Home Assistant. No account, cloud service, bank connection, telemetry, or runtime CDN dependency.
 - **English and French.** The panel, forms, dashboard card, messages, and sensor names follow your Home Assistant language. Your own budget and entry names are never translated.
 - **Export.** Download your budget definitions as a readable JSON file.
@@ -70,9 +72,10 @@ Restart Home Assistant, then add the integration from **Settings → Devices & s
 2. Optionally select **Every two weeks** as this budget’s pay period and enter a payday as its reference date. You may leave either field empty to inherit its global default.
 3. Add your paycheck: **Income**, your chosen category, amount, **Every two weeks**, and a payday as its first due date.
 4. Add rent, Netflix, and savings contributions as expenses. Expenses do not ask for a category.
-5. Set the amount and actual renewal date for each entry. The overview updates immediately.
+5. Set the amount and actual renewal date for each entry. **Per pay period** shows the regular budget; **Due dates** shows scheduled payments.
+6. Review **Projected reserves** below your entries. Optionally enter an account balance and credit owed in **Edit budget** to see **Available after reserves**.
 
-For example, an August 28 payday starts a period running **August 28 through September 10**, inclusive. A Netflix renewal on September 3 is counted in that period; one on September 11 belongs to the next period.
+In **Due dates**, an August 28 payday starts a period running **August 28 through September 10**, inclusive. A Netflix renewal on September 3 is counted in that period; one on September 11 belongs to the next period.
 
 The three category totals describe **income only**. Expenses have no category and contribute to total planned expenses. Savings contributions entered as expenses reduce the amount left to spend.
 
@@ -90,7 +93,45 @@ Use the first of the month or January 1 as the reference for calendar months or 
 
 Entry frequencies are **One time, Daily, Weekly, Every two weeks, Monthly, Quarterly, and Yearly**. Recurrence begins on the first due / renewal date and never creates earlier payments. An end date is inclusive. When a month has fewer days, the due date moves to that month's final day and returns to the original day when possible: January 31 → February 28/29 → March 31.
 
-Totals count the payments **actually scheduled inside the selected period**, not a monthly amount divided by two. They are planning projections, not bank balances, cleared transactions, or an immutable transaction history. Editing, pausing, or deleting an entry also changes past and future projections. Unspent money does not automatically roll over.
+**Due dates** counts payments actually scheduled inside the selected period. Existing v0.1.0 sensors keep this calculation. Editing, pausing, or deleting entries changes past and future projections; these are not an immutable transaction history. Unspent money does not automatically roll over.
+
+### A regular plan per payday
+
+The default **Per pay period** view normalizes recurring income and expenses using the same convention as the ALVES budgeting system:
+
+| Entry | Amount in a two-week plan |
+| --- | --- |
+| CAD 10 daily | CAD 140.00 |
+| CAD 140 weekly | CAD 280.00 |
+| CAD 2,000 every two weeks | CAD 2,000.00 |
+| CAD 280 monthly | CAD 129.23 (`280 × 12 ÷ 26`) |
+| CAD 130 quarterly | CAD 20.00 (`130 × 4 ÷ 26`) |
+| CAD 520 yearly | CAD 20.00 (`520 ÷ 26`) |
+
+The planning convention uses 364 daily periods, 52 weeks, 26 two-week periods, 12 months, 4 quarters, or 1 year. Calendar scheduling still uses real dates, including leap years and years with 27 paydays. For other pay periods, the same frequency ratios apply. Converted amounts are rounded per entry before totals are added.
+
+Active recurring commitments enter the regular plan even before their first renewal, so you can prepare for future bills. They leave the plan once no occurrence remains on or after the selected period's start. **One-time entries** contribute their full amount only in the period when due. Paused entries contribute nothing. Income categories use the selected view's calculation; expenses remain uncategorized.
+
+### Projected reserves and available money
+
+Reserves follow ALVES's installment model, using each budget's effective pay period and reference date. They represent what should already be set aside, assuming earlier installments were saved and due bills were paid. They are **estimates, not tracked savings or bank transactions**.
+
+For each recurring expense:
+
+1. Find its next due date strictly after today. On the due date, the projection rolls forward to the following renewal; an ended expense has no remaining reserve.
+2. Determine the planned installment count: the pay frequency divided by the expense frequency, rounded up to a whole number, with a minimum of one. Monthly bills with biweekly pay therefore have three planned installments; yearly bills have 26.
+3. Count future paydays after today and **on or before** the next due date, capped at the planned count. Completed installments are the planned count minus those remaining.
+4. Project the reserve as `expense amount × completed installments ÷ planned installments`, rounded in the budget currency. Rounding the final fraction prevents accumulated installment-rounding errors.
+
+For example, a CAD 280 monthly bill due January 31, with biweekly pay anchored to January 31, has a CAD 93.33 reserve on February 1 toward February 28: one of three installments, with two future paydays left. Its regular two-week allocation is CAD 129.23. The regular allocation and the reserve installment differ because monthly cycles do not contain a fixed whole number of two-week pay periods. On rollover, the reserve can start partially funded when fewer future paydays remain than the planned count.
+
+Daily, weekly, monthly, and yearly pay periods use the same method. The reference date may be in the past or future and is never forced to a particular weekday. One-time entries have no automatic reserve. Reserves cover the **next renewal of each recurring expense**, not every payment before the next payday. The reserve view always uses **today**, even when browsing another period.
+
+Optionally enter **Account balance** and **Credit owed** in the budget currency:
+
+`Available after reserves = account balance − credit owed − projected reserves`
+
+Zero balances and negative available amounts are preserved; account overdrafts are allowed. Credit owed must be nonnegative. Leave the account balance empty to hide the estimate. Update these manual balances yourself after transactions; no bank synchronization or transfers are performed.
 
 ### Currencies
 
@@ -104,7 +145,7 @@ The integration registers its card automatically, including on YAML dashboards. 
 
 1. Edit a dashboard and choose **Add card**.
 2. Search for **Autonomous Budget**.
-3. Select a budget in the visual editor. Optionally customize the title and show or hide income categories and upcoming payments.
+3. Select a budget in the visual editor. Optionally customize the title and choose the calculation view, and show or hide income categories, upcoming payments, and projected reserves.
 
 <img src="docs/screenshot-card.png" alt="Autonomous Budget dashboard card" width="390">
 
@@ -113,6 +154,8 @@ You can also open the grid button beside a budget's name to get its ready-to-pas
 ```yaml
 type: custom:autonomous-budget-card
 budget_id: YOUR_BUDGET_ID
+view: plan # or cashflow
+show_reserves: true
 show_categories: true
 show_upcoming: true
 ```
@@ -121,7 +164,7 @@ show_upcoming: true
 
 ### Native sensors and automations
 
-Each budget is a device with six monetary sensors:
+Each budget is a device with eleven monetary sensors:
 
 | Sensor | Current-period value |
 | --- | --- |
@@ -131,8 +174,13 @@ Each budget is a device with six monetary sensors:
 | Investment income | Incoming money categorized as Investment |
 | Mandatory income | Incoming money categorized as Mandatory |
 | Optional income | Incoming money categorized as Optional |
+| Income per pay period | Normalized income in the regular plan |
+| Expenses per pay period | Normalized expenses in the regular plan |
+| Remaining per pay period | Normalized income minus normalized expenses |
+| Projected reserve | Total projected reserve for recurring expenses as of today |
+| Available after reserves | Manual account balance minus credit owed and projected reserves; unknown until an account balance is entered |
 
-Find the exact entity IDs in **Settings → Devices & services → Autonomous Budget**. Each sensor includes `budget_id`, effective `period`, `reference_date`, `period_start`, and exclusive `period_end` attributes. IDs remain stable when you rename a budget. Sensors update on edits and at local midnight, and can be used in built-in cards, templates, history, and automations.
+Find the exact entity IDs in **Settings → Devices & services → Autonomous Budget**. Each sensor includes `budget_id`, `metric`, `calculation`, `reserve_date`, effective `period`, `reference_date`, `period_start`, and exclusive `period_end` attributes. IDs remain stable when you rename a budget. Sensors update on edits and at local midnight, and can be used in built-in cards, templates, history, and automations.
 
 ```yaml
 # Replace these example IDs with the entities from your installation.
@@ -165,12 +213,20 @@ Data is stored in `.storage/autonomous_budget` within the Home Assistant configu
 
 Removing the integration keeps its stored budgets so reinstalling can restore them. Deleting a budget in the panel removes its entries and sensors. Use a Home Assistant backup before deleting data you may need again. The JSON export is for inspection and portability; an import UI is not included in this release.
 
+## Updating from 0.1.0
+
+Download 0.2.0 in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets, IDs, optional pay schedules, and the original six sensor calculations are preserved. Five new sensors are added to each budget. No storage reset or manual migration is needed.
+
+The sidebar and custom card now default to **Per pay period**. Choose **Due dates**, or set `view: cashflow` on the card, for the earlier cash-flow display. The new balance fields are empty until you enter them.
+
 ## Troubleshooting
 
 - **Integration not found:** check the folder is named `autonomous_budget` under `custom_components`, then restart Home Assistant.
 - **Sidebar or card missing:** verify the integration loaded under Devices & services, then refresh the browser. Check Home Assistant logs for `autonomous_budget`.
 - **Unexpected period:** check the budget’s optional pay period and reference date, its inherited defaults, and your Home Assistant timezone.
-- **Missing amount:** check the entry is active and its renewal falls inside the period. Future first due dates do not backfill earlier periods.
+- **Different totals between views:** the regular plan normalizes recurring amounts; Due dates counts actual scheduled payments. Future commitments can appear in the plan before their first renewal.
+- **Missing due-date amount:** check the entry is active and its renewal falls inside the period. Future first due dates do not backfill earlier payments.
+- **Available balance unknown:** enter an optional account balance in Edit budget. Zero is a valid balance.
 - **Another session changed the budget:** close the editor and reopen it to work from the latest saved data.
 
 [Report a bug](https://github.com/raccommode/AutonomousBudget-HomeAssistant/issues/new?template=bug_report.yml) or [suggest a feature](https://github.com/raccommode/AutonomousBudget-HomeAssistant/issues/new?template=feature_request.yml).

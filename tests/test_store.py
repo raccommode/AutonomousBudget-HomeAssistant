@@ -85,3 +85,29 @@ async def test_snapshot_uses_home_assistant_timezone(store, monkeypatch):
 
     monkeypatch.setattr(dt_util.dt, "datetime", FixedDateTime)
     assert store.snapshot()["today"] == "2026-09-10"
+
+
+async def test_v010_store_loads_without_rewriting_and_balances_survive_edits(store):
+    legacy = {
+        "revision": 7,
+        "settings": DEFAULTS,
+        "budgets": [{"id": "old-budget", "name": "Original", "currency": "CAD", "items": []}],
+    }
+    await store.storage.async_save(legacy)
+    fresh = BudgetStore(store.hass)
+    await fresh.async_load(DEFAULTS)
+    assert fresh.data == legacy
+    snapshot = fresh.snapshot()["budgets"][0]
+    assert snapshot["available_balance"] is None
+    assert snapshot["plan"]["balance"] == "0.00"
+    assert snapshot["effective_period"] == "biweekly"
+    await fresh.async_mutate(
+        "budget_update", {"budget_id": "old-budget", "account_balance": "200", "credit_balance": "20"}, 7
+    )
+    await fresh.async_mutate("budget_update", {"budget_id": "old-budget", "name": "Renamed"}, 8)
+    assert fresh.snapshot()["budgets"][0]["available_balance"] == "180.00"
+    reloaded = BudgetStore(store.hass)
+    await reloaded.async_load(DEFAULTS)
+    assert reloaded.data == fresh.data
+    await reloaded.async_mutate("budget_update", {"budget_id": "old-budget", "account_balance": ""}, 9)
+    assert reloaded.snapshot()["budgets"][0]["available_balance"] is None

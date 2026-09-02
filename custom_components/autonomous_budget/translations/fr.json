@@ -49,6 +49,21 @@
       },
       "optional": {
         "name": "Revenus facultatifs"
+      },
+      "planned_income": {
+        "name": "Revenus par période de paie"
+      },
+      "planned_expenses": {
+        "name": "Dépenses par période de paie"
+      },
+      "planned_balance": {
+        "name": "Restant par période de paie"
+      },
+      "reserved": {
+        "name": "Réserve prévisionnelle"
+      },
+      "available_balance": {
+        "name": "Disponible après réserves"
       }
     }
   }

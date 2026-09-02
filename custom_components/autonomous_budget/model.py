@@ -66,12 +66,34 @@ def validate_settings(data: dict) -> dict:
 
 def validate_budget(data: dict) -> dict:
     """Normalize metadata and optional per-budget pay schedule overrides."""
+    currency = choice(data.get("currency"), CURRENCIES, "currency")
     return {
         "name": text(data.get("name"), "Budget name"),
-        "currency": choice(data.get("currency"), CURRENCIES, "currency"),
+        "currency": currency,
         "period": choice(data["period"], PERIODS, "pay period") if data.get("period") else None,
         "anchor": parse_date(data["anchor"]).isoformat() if data.get("anchor") else None,
+        "account_balance": optional_balance(data.get("account_balance"), currency),
+        "credit_balance": optional_balance(data.get("credit_balance"), currency, debt=True)
+        or str(quantize(Decimal(0), currency)),
     }
+
+
+def optional_balance(value: Any, currency: str, *, debt: bool = False) -> str | None:
+    """Validate manually entered balances, including overdrafts, without rounding input."""
+    if value is None or value == "":
+        return None
+    try:
+        if isinstance(value, bool) or len(str(value)) > 40:
+            raise InvalidOperation
+        amount = Decimal(str(value))
+        minimum = 0 if debt else -1_000_000_000
+        if not amount.is_finite() or not minimum <= amount <= 1_000_000_000:
+            raise InvalidOperation
+        if amount != quantize(amount, currency):
+            raise InvalidOperation
+    except InvalidOperation, ValueError:
+        raise ValidationError("Enter a valid balance in the budget currency. Credit owed cannot be negative.") from None
+    return str(quantize(amount, currency))
 
 
 def validate_item(data: dict, budget_currency: str) -> dict:
@@ -160,29 +182,40 @@ def occurrences(item: dict, start: date, end: date) -> list[date]:
 
 def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dict:
     """Summarize scheduled cash flow; this is not a bank account balance."""
+    from .planning import next_occurrence, planned_amount, reserve_accrual
+
     period = budget.get("period") or settings["period"]
     anchor = budget.get("anchor") or settings["anchor"]
     start, end = period_bounds(today, period, date.fromisoformat(anchor), offset)
     currency = budget["currency"]
     totals = dict.fromkeys(("income", "expenses", *CATEGORIES), Decimal(0))
+    plan = totals.copy()
+    reserved = Decimal(0)
     entries = []
     due = []
     for item in budget["items"]:
         dates = occurrences(item, start, end)
         converted = quantize(Decimal(item["amount"]) * Decimal(item["exchange_rate"]), currency)
         amount = converted * len(dates)
+        planned = planned_amount(item, currency, period, start, end)
+        reserve = reserve_accrual(item, currency, period, date.fromisoformat(anchor), today)
+        reserved += Decimal(reserve["reserved_amount"]) if reserve else Decimal(0)
         totals["income" if item["direction"] == "income" else "expenses"] += amount
+        plan["income" if item["direction"] == "income" else "expenses"] += planned
         if item["direction"] == "income" and item.get("category") in CATEGORIES:
             totals[item["category"]] += amount
+            plan[item["category"]] += planned
         # Include next renewal even when it falls outside the selected period.
         next_start = max(today, start, date.fromisoformat(item["renewal_date"]))
-        upcoming = occurrences(item, next_start, next_start + timedelta(days=367))
+        upcoming = next_occurrence(item, next_start)
         entries.append(
             item
             | {
                 "period_amount": str(amount),
+                "planned_amount": str(planned),
+                "reserve": reserve,
                 "occurrences": len(dates),
-                "next_due": upcoming[0].isoformat() if upcoming else None,
+                "next_due": upcoming.isoformat() if upcoming else None,
             }
         )
         due.extend(
@@ -197,6 +230,11 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
             for day in dates
         )
     totals["balance"] = totals["income"] - totals["expenses"]
+    plan["balance"] = plan["income"] - plan["expenses"]
+    account = budget.get("account_balance")
+    available = (
+        Decimal(account) - Decimal(budget.get("credit_balance") or "0") - reserved if account is not None else None
+    )
     return budget | {
         "items": entries,
         "effective_period": period,
@@ -205,5 +243,8 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
         "period_end": end.isoformat(),
         "period_last_day": (end - timedelta(days=1)).isoformat(),
         "totals": {key: str(quantize(value, currency)) for key, value in totals.items()},
+        "plan": {key: str(quantize(value, currency)) for key, value in plan.items()},
+        "reserves": {"amount": str(quantize(reserved, currency)), "as_of": today.isoformat()},
+        "available_balance": str(quantize(available, currency)) if available is not None else None,
         "schedule": sorted(due, key=lambda row: (row["date"], row["name"])),
     }

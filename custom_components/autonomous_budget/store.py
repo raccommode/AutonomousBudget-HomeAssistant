@@ -78,7 +78,7 @@ class BudgetStore:
             data["budgets"].remove(budget)
             return {}
         if action == "budget_update":
-            update = validate_budget(payload)
+            update = validate_budget(budget | payload)
             if budget["items"] and update["currency"] != budget["currency"]:
                 raise ValidationError("A budget with entries cannot change currency. Create a new budget instead.")
             budget.update(update)

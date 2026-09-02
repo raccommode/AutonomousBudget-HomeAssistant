@@ -16,6 +16,11 @@ METRICS = {
     "investment": ("Investment income", "mdi:chart-line"),
     "mandatory": ("Mandatory income", "mdi:shield-check-outline"),
     "optional": ("Optional income", "mdi:sparkles"),
+    "planned_income": ("Income per pay period", "mdi:arrow-down-left"),
+    "planned_expenses": ("Expenses per pay period", "mdi:arrow-up-right"),
+    "planned_balance": ("Remaining per pay period", "mdi:wallet-outline"),
+    "reserved": ("Projected reserve", "mdi:piggy-bank-outline"),
+    "available_balance": ("Available after reserves", "mdi:cash-check"),
 }
 
 
@@ -79,7 +84,15 @@ class BudgetSensor(SensorEntity):
 
     @property
     def native_value(self):
-        return self._snapshot["totals"][self.metric] if self._snapshot else None
+        if not self._snapshot:
+            return None
+        if self.metric.startswith("planned_"):
+            return self._snapshot["plan"][self.metric.removeprefix("planned_")]
+        if self.metric == "reserved":
+            return self._snapshot["reserves"]["amount"]
+        if self.metric == "available_balance":
+            return self._snapshot["available_balance"]
+        return self._snapshot["totals"][self.metric]
 
     @property
     def native_unit_of_measurement(self):
@@ -102,10 +115,17 @@ class BudgetSensor(SensorEntity):
             return {}
         return {
             "budget_id": self.budget_id,
+            "metric": self.metric,
             "period_start": self._snapshot["period_start"],
             "period_end": self._snapshot["period_end"],
             "period": self._snapshot["effective_period"],
             "reference_date": self._snapshot["effective_anchor"],
+            "calculation": "pay_period_plan"
+            if self.metric.startswith("planned_")
+            else "reserve_projection"
+            if self.metric in ("reserved", "available_balance")
+            else "scheduled_cash_flow",
+            "reserve_date": self._snapshot["reserves"]["as_of"],
         }
 
     async def async_added_to_hass(self):

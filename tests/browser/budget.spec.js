@@ -21,7 +21,13 @@ test.afterEach(async ({ page }, testInfo) => {
 test('desktop panel, period navigation, and dashboard card', async ({ page }) => {
   const panel = page.locator('autonomous-budget-panel');
   await expect(panel.getByRole('cell', {name: /Netflix/}).first()).toBeVisible();
+  await expect(panel.getByText('CAD 1,352.16', {exact: true})).toBeVisible();
+  await panel.getByRole('button', {name: 'Due dates', exact: true}).click();
   await expect(panel.getByText('CAD 783.02', {exact: true})).toBeVisible();
+  await panel.getByRole('button', {name: 'Per pay period', exact: true}).click();
+  await expect(panel.getByText('CAD 1,352.16', {exact: true})).toBeVisible();
+  await expect(panel.getByRole('heading', {name: 'Projected reserves', exact: true})).toBeVisible();
+  await expect(panel.getByRole('progressbar').first()).toBeVisible();
   const period = await panel.locator('.period-title').innerText();
   await panel.getByRole('button', {name: 'Next period', exact: true}).click();
   await expect(panel.locator('.period-title')).not.toHaveText(period);
@@ -43,7 +49,7 @@ test('desktop panel, period navigation, and dashboard card', async ({ page }) =>
   });
   const card = page.locator('autonomous-budget-card');
   await expect(card.getByRole('heading', {name: 'Everyday life'})).toBeVisible();
-  await expect(card.getByText('CAD 783.02', {exact: true})).toBeVisible();
+  await expect(card.getByText('CAD 1,352.16', {exact: true})).toBeVisible();
   await card.screenshot({path: 'docs/screenshot-card.png'});
 });
 
@@ -69,7 +75,7 @@ test('create, edit, currency conversion, pause, reload, and delete', async ({ pa
   await panel.getByLabel('Currency', {exact:true}).selectOption('USD');
   await panel.getByLabel('Exchange rate to CAD').fill('1.35');
   await panel.getByRole('button', {name: 'Add entry', exact:true}).last().click();
-  await expect(panel.locator('.stat .value').last()).toHaveText('CAD 13.50');
+  await expect(panel.locator('.stat .value').last()).toHaveText('CAD 3.12');
   await panel.getByRole('button', {name: 'Edit Foreign subscription'}).click();
   await panel.getByLabel('Active entry').uncheck();
   await panel.getByRole('button', {name: 'Save changes', exact:true}).click();
@@ -103,8 +109,8 @@ test('mobile layout and editable settings', async ({ page }) => {
 test('French panel, optional pay schedule, and untranslated user names', async ({ page }) => {
   const panel = page.locator('autonomous-budget-panel');
   await expect(panel.getByRole('button', {name:'Paramètres',exact:true})).toBeVisible();
-  await expect(panel.getByText('Revenus prévus', {exact:true})).toBeVisible();
-  await expect(panel.getByText('783,02 CAD', {exact:true})).toBeVisible();
+  await expect(panel.getByText('Revenus par période de paie', {exact:true})).toBeVisible();
+  await expect(panel.getByText('1\u202f352,16 CAD', {exact:true})).toBeVisible();
   await panel.getByRole('button', {name:'Nouveau budget',exact:true}).click();
   await panel.getByLabel('Nom du budget').fill('Income');
   await expect(panel.getByLabel('Période de paie (facultative)')).toHaveValue('');
@@ -124,4 +130,74 @@ test('French panel, optional pay schedule, and untranslated user names', async (
   await expect(panel.locator('.toast')).toHaveCount(0);
   await expect(panel.locator('.table-foot')).toContainText('entrées actives');
   await page.screenshot({path:'docs/screenshot-french.png',fullPage:true});
+});
+
+test('paycheck reserves, manual available balance, native sensors, export, and card editor', async ({ page }) => {
+  const panel = page.locator('autonomous-budget-panel');
+  const today = await panel.evaluate(el => el.data.today);
+  const tomorrow = new Date(`${today}T12:00:00Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const due = tomorrow.toISOString().slice(0, 10);
+  await panel.getByRole('button', {name: 'New budget', exact:true}).click();
+  await panel.getByLabel('Budget name', {exact:true}).fill('Reserve browser test');
+  await panel.getByLabel('Pay period (optional)').selectOption('biweekly');
+  await panel.getByLabel('Payday / reference date (optional)').fill(today);
+  await panel.getByLabel('Account balance (optional)').fill('100');
+  await panel.getByLabel('Credit owed (optional)').fill('20');
+  await panel.getByRole('button', {name: 'Create budget', exact:true}).click();
+  await expect(panel.getByRole('heading', {name: 'Reserve browser test'})).toBeVisible();
+  await panel.getByRole('button', {name: 'Add entry', exact:true}).click();
+  await panel.getByLabel('Entry name').fill('Insurance');
+  await panel.getByLabel('Amount', {exact:true}).fill('120');
+  await panel.getByLabel('First due / renewal date').fill(due);
+  await panel.getByRole('button', {name: 'Add entry', exact:true}).last().click();
+  await expect(panel.locator('.stat .value').last()).toHaveText('CAD 55.38');
+  await expect(panel.locator('.reserve-total')).toHaveText('CAD 120.00');
+  await expect(panel.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '3');
+  await expect(panel.locator('.available-summary strong')).toHaveText('-CAD 40.00');
+  await panel.getByRole('button', {name: 'Due dates', exact:true}).click();
+  await expect(panel.locator('.stat .value').last()).toHaveText('CAD 120.00');
+  const actual = await panel.evaluate(async el => (await el.hass.callWS({type: 'get_states'})).filter(state => state.attributes.budget_id === el.budget.id).map(state => ({metric: state.attributes.metric, state: state.state})));
+  expect(actual).toEqual(expect.arrayContaining([
+    {metric: 'expenses', state: '120.00'},
+    {metric: 'planned_expenses', state: '55.38'},
+    {metric: 'reserved', state: '120.00'},
+    {metric: 'available_balance', state: '-40.00'},
+  ]));
+  const downloadPromise = page.waitForEvent('download');
+  await panel.getByRole('button', {name:'Export budgets'}).click();
+  const download = await downloadPromise;
+  const exported = JSON.parse(fs.readFileSync(await download.path(), 'utf8'));
+  const saved = exported.budgets.find(budget => budget.name === 'Reserve browser test');
+  expect(saved.account_balance).toBe('100.00');
+  expect(saved.credit_balance).toBe('20.00');
+  expect(saved.items[0].category).toBeNull();
+  expect(saved.items[0]).not.toHaveProperty('reserve');
+  expect(saved.items[0]).not.toHaveProperty('planned_amount');
+  await panel.evaluate(async el => {
+    await customElements.whenDefined('autonomous-budget-card-editor');
+    const editor = document.createElement('autonomous-budget-card-editor');
+    editor.id = 'editor-test';
+    editor.setConfig({type: 'custom:autonomous-budget-card', budget_id: el.budget.id});
+    editor.hass = el.hass;
+    editor.style = 'position:fixed;right:20px;top:80px;padding:20px;width:330px;background:white;z-index:1000';
+    document.body.append(editor);
+  });
+  const editor = page.locator('autonomous-budget-card-editor');
+  await editor.getByLabel('Calculation view').selectOption('cashflow');
+  await editor.getByLabel('Show projected reserves').uncheck();
+  expect(await editor.evaluate(el => el.config)).toMatchObject({view:'cashflow', show_reserves:false});
+  await editor.evaluate(el => el.remove());
+  await page.reload();
+  await panel.getByRole('button', {name:'Reserve browser test CAD'}).click();
+  await expect(panel.locator('.available-summary strong')).toHaveText('-CAD 40.00');
+  await panel.getByRole('button', {name:'Edit budget',exact:true}).click();
+  await expect(panel.getByLabel('Account balance (optional)')).toHaveValue('100.00');
+  await panel.getByLabel('Account balance (optional)').fill('');
+  await panel.getByRole('button', {name:'Save changes',exact:true}).click();
+  await expect(panel.locator('.available-summary strong')).toHaveText('—');
+  await panel.getByRole('button', {name:'Edit budget',exact:true}).click();
+  await panel.getByRole('button', {name:'Delete budget',exact:true}).click();
+  await panel.getByRole('button', {name:'Delete budget',exact:true}).click();
+  await expect(panel.getByRole('button', {name:'Reserve browser test CAD'})).toHaveCount(0);
 });

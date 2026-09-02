@@ -1,0 +1,64 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    name: Python and frontend checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: uv venv && uv pip install -r requirements-dev.txt
+      - run: .venv/bin/ruff check custom_components tests scripts
+      - run: .venv/bin/ruff format --check custom_components tests scripts
+      - run: .venv/bin/pytest -q
+      - run: npm ci && npm run check
+  home-assistant:
+    name: Home Assistant browser smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: uv venv && uv pip install -r requirements-dev.txt
+      - run: npm ci && npx playwright install --with-deps chromium
+      - name: Start disposable Home Assistant
+        run: ./scripts/dev.sh > /tmp/autonomous-budget-ha.log 2>&1 &
+      - run: .venv/bin/python scripts/setup_demo.py
+      - run: npm run test:e2e
+      - name: Home Assistant logs on failure
+        if: failure()
+        run: cat /tmp/autonomous-budget-ha.log
+  hassfest:
+    name: Home Assistant manifest validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+  hacs:
+    name: HACS custom repository validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands

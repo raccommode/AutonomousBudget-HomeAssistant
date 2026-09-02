@@ -1,0 +1,201 @@
+"""Validated budget data and calendar calculations, independent of Home Assistant."""
+
+from calendar import monthrange
+from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from typing import Any
+
+from .const import CATEGORIES, CURRENCIES, PERIODS, RECURRENCES
+
+
+class ValidationError(ValueError):
+    """User-facing validation failure."""
+
+
+def text(value: Any, label: str, limit: int = 100) -> str:
+    """Validate a nonempty text field."""
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > limit:
+        raise ValidationError(f"{label} must contain 1–{limit} characters.")
+    return value.strip()
+
+
+def choice(value: Any, choices: Any, label: str) -> str:
+    """Validate a string enum."""
+    if not isinstance(value, str) or value not in choices:
+        raise ValidationError(f"Choose a valid {label}.")
+    return value
+
+
+def parse_date(value: Any) -> date:
+    """Accept an ISO date, within a safe scheduling range."""
+    try:
+        result = date.fromisoformat(value)
+        if not 1900 <= result.year <= 2200:
+            raise ValueError
+        return result
+    except ValueError, TypeError:
+        raise ValidationError("Use a date between 1900-01-01 and 2200-12-31.") from None
+
+
+def decimal(value: Any, label: str, maximum: str = "1000000000") -> Decimal:
+    """Reject non-finite, negative, boolean, and excessively large amounts."""
+    try:
+        if isinstance(value, bool) or len(str(value)) > 40:
+            raise InvalidOperation
+        number = Decimal(str(value))
+        if not number.is_finite() or number < 0 or number > Decimal(maximum):
+            raise InvalidOperation
+        return number
+    except InvalidOperation, ValueError:
+        raise ValidationError(f"{label} must be between 0 and {maximum}.") from None
+
+
+def quantize(amount: Decimal, currency: str) -> Decimal:
+    """Round to the target currency's minor units."""
+    return amount.quantize(Decimal(10) ** -CURRENCIES[currency], rounding=ROUND_HALF_UP)
+
+
+def validate_settings(data: dict) -> dict:
+    """Normalize global defaults; the anchor determines period boundaries."""
+    return {
+        "currency": choice(data.get("currency"), CURRENCIES, "currency"),
+        "period": choice(data.get("period"), PERIODS, "budget period"),
+        "anchor": parse_date(data.get("anchor")).isoformat(),
+    }
+
+
+def validate_budget(data: dict) -> dict:
+    """Normalize budget metadata; periods follow global settings."""
+    return {
+        "name": text(data.get("name"), "Budget name"),
+        "currency": choice(data.get("currency"), CURRENCIES, "currency"),
+    }
+
+
+def validate_item(data: dict, budget_currency: str) -> dict:
+    """Validate a recurring income or expense, including an explicit FX rate."""
+    currency = choice(data.get("currency"), CURRENCIES, "currency")
+    amount = decimal(data.get("amount"), "Amount")
+    if amount != quantize(amount, currency):
+        raise ValidationError(f"{currency} amounts allow {CURRENCIES[currency]} decimal places.")
+    rate = Decimal(1) if currency == budget_currency else decimal(data.get("exchange_rate"), "Exchange rate", "1000000")
+    if rate <= 0 or rate.as_tuple().exponent < -8:
+        raise ValidationError("Exchange rate must be positive, with at most 8 decimal places.")
+    active = data.get("active", True)
+    if not isinstance(active, bool):
+        raise ValidationError("Active must be true or false.")
+    start = parse_date(data.get("renewal_date"))
+    end = parse_date(data["end_date"]) if data.get("end_date") else None
+    if end and end < start:
+        raise ValidationError("End date cannot precede the first due date.")
+    return {
+        "name": text(data.get("name"), "Entry name"),
+        "direction": choice(data.get("direction"), ("income", "expense"), "direction"),
+        "category": choice(data.get("category"), CATEGORIES, "category"),
+        "amount": str(quantize(amount, currency)),
+        "currency": currency,
+        "exchange_rate": str(rate),
+        "recurrence": choice(data.get("recurrence"), RECURRENCES, "recurrence"),
+        "renewal_date": start.isoformat(),
+        "end_date": end.isoformat() if end else None,
+        "active": active,
+    }
+
+
+def add_months(anchor: date, months: int) -> date:
+    """Always calculate from the original date, preserving Jan 31 / leap-day intent."""
+    year, month = divmod(anchor.year * 12 + anchor.month - 1 + months, 12)
+    return date(year, month + 1, min(anchor.day, monthrange(year, month + 1)[1]))
+
+
+def period_bounds(today: date, period: str, anchor: date, offset: int = 0) -> tuple[date, date]:
+    """Return a half-open interval containing today, shifted by whole periods."""
+    if period in ("daily", "weekly", "biweekly"):
+        days = {"daily": 1, "weekly": 7, "biweekly": 14}[period]
+        index = (today - anchor).days // days + offset
+        start = anchor + timedelta(days=index * days)
+        return start, start + timedelta(days=days)
+    months = 12 if period == "yearly" else 1
+    index = ((today.year - anchor.year) * 12 + today.month - anchor.month) // months
+    if add_months(anchor, index * months) > today:
+        index -= 1
+    index += offset
+    return add_months(anchor, index * months), add_months(anchor, (index + 1) * months)
+
+
+def occurrences(item: dict, start: date, end: date) -> list[date]:
+    """Dates in [start, end), never before the configured first due date."""
+    if not item["active"]:
+        return []
+    anchor = date.fromisoformat(item["renewal_date"])
+    if item.get("end_date"):
+        end = min(end, date.fromisoformat(item["end_date"]) + timedelta(days=1))
+    if end <= start or anchor >= end:
+        return []
+    recurrence = item["recurrence"]
+    if recurrence == "once":
+        return [anchor] if start <= anchor < end else []
+    dates = []
+    if recurrence in ("daily", "weekly", "biweekly"):
+        days = {"daily": 1, "weekly": 7, "biweekly": 14}[recurrence]
+        index = max(0, ((start - anchor).days + days - 1) // days)
+        current = anchor + timedelta(days=index * days)
+        while current < end:
+            dates.append(current)
+            current += timedelta(days=days)
+    else:
+        months = {"monthly": 1, "quarterly": 3, "yearly": 12}[recurrence]
+        index = max(0, ((start.year - anchor.year) * 12 + start.month - anchor.month) // months)
+        current = add_months(anchor, index * months)
+        while current < end:
+            if current >= start:
+                dates.append(current)
+            index += 1
+            current = add_months(anchor, index * months)
+    return dates
+
+
+def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dict:
+    """Summarize scheduled cash flow; this is not a bank account balance."""
+    start, end = period_bounds(today, settings["period"], date.fromisoformat(settings["anchor"]), offset)
+    currency = budget["currency"]
+    totals = dict.fromkeys(("income", "expenses", *CATEGORIES), Decimal(0))
+    entries = []
+    due = []
+    for item in budget["items"]:
+        dates = occurrences(item, start, end)
+        converted = quantize(Decimal(item["amount"]) * Decimal(item["exchange_rate"]), currency)
+        amount = converted * len(dates)
+        totals["income" if item["direction"] == "income" else "expenses"] += amount
+        if item["direction"] == "expense":
+            totals[item["category"]] += amount
+        # Include next renewal even when it falls outside the selected period.
+        upcoming = occurrences(item, max(today, start), max(today, start) + timedelta(days=367))
+        entries.append(
+            item
+            | {
+                "period_amount": str(amount),
+                "occurrences": len(dates),
+                "next_due": upcoming[0].isoformat() if upcoming else None,
+            }
+        )
+        due.extend(
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "date": day.isoformat(),
+                "amount": str(converted),
+                "direction": item["direction"],
+                "category": item["category"],
+            }
+            for day in dates
+        )
+    totals["balance"] = totals["income"] - totals["expenses"]
+    return budget | {
+        "items": entries,
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
+        "period_last_day": (end - timedelta(days=1)).isoformat(),
+        "totals": {key: str(quantize(value, currency)) for key, value in totals.items()},
+        "schedule": sorted(due, key=lambda row: (row["date"], row["name"])),
+    }

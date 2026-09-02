@@ -1,0 +1,21 @@
+name: Release validation
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Match the release tag to the integration version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.loads(Path('custom_components/autonomous_budget/manifest.json').read_text())
+          assert os.environ['RELEASE_TAG'] == 'v' + manifest['version']
+          PY

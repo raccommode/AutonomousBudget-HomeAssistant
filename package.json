@@ -1,0 +1,11 @@
+{
+  "name": "autonomous-budget-home-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check custom_components/autonomous_budget/frontend/shared.js && node --check custom_components/autonomous_budget/frontend/autonomous-budget-panel.js && node --check custom_components/autonomous_budget/frontend/autonomous-budget-card.js",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": { "@playwright/test": "^1.58.0" }
+}

@@ -1,0 +1,13 @@
+{
+  "title": "Autonomous Budget",
+  "config": {
+    "step": {"user": {
+      "title": "Your money, on your schedule",
+      "description": "Choose your default currency and budget period. For a two-week budget, use a payday as the reference date. You can change these settings in the Autonomous Budget sidebar.",
+      "data": {"currency": "Default currency", "period": "Budget period", "anchor": "Reference date (for example, a payday)"}
+    }},
+    "error": {"invalid_settings": "Check the currency, period, and reference date."},
+    "abort": {"already_configured": "Autonomous Budget is already configured. Create additional budgets in the sidebar."}
+  },
+  "selector": {"period": {"options": {"daily": "Daily", "weekly": "Weekly", "biweekly": "Every two weeks", "monthly": "Monthly", "yearly": "Yearly"}}}
+}

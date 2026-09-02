@@ -1,0 +1,19 @@
+homeassistant:
+  name: Autonomous Budget Development
+  time_zone: America/Toronto
+  latitude: 45.5019
+  longitude: -73.5674
+  elevation: 20
+  unit_system: metric
+  country: CA
+http:
+  server_host: 127.0.0.1
+  server_port: 8128
+frontend:
+api:
+config:
+websocket_api:
+lovelace:
+history:
+recorder:
+  purge_keep_days: 1

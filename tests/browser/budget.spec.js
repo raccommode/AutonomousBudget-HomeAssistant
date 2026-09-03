@@ -28,10 +28,22 @@ test('desktop panel, period navigation, and dashboard card', async ({ page }) =>
   await expect(panel.getByText('CAD 1,352.16', {exact: true})).toBeVisible();
   await expect(panel.getByRole('heading', {name: 'Projected reserves', exact: true})).toBeVisible();
   await expect(panel.getByRole('progressbar').first()).toBeVisible();
+  await expect(panel.locator('.period-nav button')).toHaveCount(2);
+  await expect(panel.locator('.period-nav').getByRole('button', {name:'Today'})).toHaveCount(0);
+  expect(await panel.locator('tbody').evaluateAll(groups => groups.map(el => el.dataset.group))).toEqual(['income', 'expenses', 'investment', 'mandatory', 'optional']);
+  await expect(panel.locator('tbody[data-group="income"] .entry-name > span')).toHaveText(['Paycheck']);
+  await expect(panel.locator('tbody[data-group="investment"] .entry-name > span')).toHaveText(['Future fund']);
+  await expect(panel.locator('tbody[data-group="mandatory"] .entry-name > span')).toHaveText(['Rent', 'Groceries', 'Internet']);
+  await expect(panel.locator('tbody[data-group="optional"] .entry-name > span')).toHaveText(['Netflix', 'Coffee & little things']);
+  await panel.getByRole('group', {name:'Filter entries'}).getByRole('button', {name:/^Income/}).click();
+  await expect(panel.locator('tbody')).toHaveCount(1);
+  await panel.getByRole('group', {name:'Filter entries'}).getByRole('button', {name:/^Expenses/}).click();
+  await expect(panel.locator('tbody[data-group="income"]')).toHaveCount(0);
+  await panel.getByRole('group', {name:'Filter entries'}).getByRole('button', {name:/^All entries/}).click();
   const period = await panel.locator('.period-title').innerText();
   await panel.getByRole('button', {name: 'Next period', exact: true}).click();
   await expect(panel.locator('.period-title')).not.toHaveText(period);
-  await panel.getByRole('button', {name: 'Today', exact: true}).click();
+  await panel.getByRole('button', {name: 'Previous period', exact: true}).click();
   await expect(panel.locator('.period-title')).toHaveText(period);
   await page.screenshot({path: 'docs/screenshot-desktop.png', fullPage: true});
   await panel.getByRole('button', {name: 'Add budget to a dashboard'}).click();
@@ -99,6 +111,7 @@ test('mobile layout and editable settings', async ({ page }) => {
   await expect(panel.getByRole('heading', {name:'Your money, in view.'})).toBeVisible();
   await page.screenshot({path:'docs/screenshot-mobile.png', fullPage:true});
   expect(await panel.evaluate((el) => el.shadowRoot.querySelector('.shell').scrollWidth <= el.clientWidth)).toBeTruthy();
+  await expect(panel.locator('.period-nav button')).toHaveCount(2);
   await panel.getByRole('button', {name:'Settings', exact:true}).click();
   await expect(panel.getByLabel('Budget period')).toHaveValue('biweekly');
   await panel.getByLabel('Budget period').selectOption('weekly');
@@ -134,6 +147,11 @@ test('French panel, optional pay schedule, and untranslated user names', async (
   await expect(panel.getByRole('heading', {name:'Income',exact:true})).toHaveCount(0);
   await expect(panel.locator('.toast')).toHaveCount(0);
   await expect(panel.locator('.table-foot')).toContainText('entrées actives');
+  await expect(panel.locator('tbody[data-group="income"] h3')).toContainText('Revenus');
+  await expect(panel.locator('tbody[data-group="expenses"] h3')).toContainText('Dépenses');
+  await expect(panel.locator('tbody[data-group="investment"] h3')).toContainText('Investissement');
+  await expect(panel.locator('.period-nav button')).toHaveCount(2);
+  await expect(panel.locator('.period-nav')).not.toContainText('Aujourd’hui');
   await page.screenshot({path:'docs/screenshot-french.png',fullPage:true});
 });
 
@@ -173,6 +191,23 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
     {metric: 'reserved', state: '120.00'},
     {metric: 'available_balance', state: '-40.00'},
   ]));
+  const entityInfo = await panel.evaluate(async el => {
+    const state = Object.values(el.hass.states).find(state => state.attributes.budget_id === el.budget.id && state.attributes.metric === 'reserved');
+    const registry = await el.hass.callWS({type:'config/entity_registry/list'});
+    return {state, registration: registry.find(entity => entity.entity_id === state.entity_id)};
+  });
+  expect(entityInfo.state.state).toBe('120.00');
+  expect(entityInfo.state.attributes.device_class).toBe('monetary');
+  expect(entityInfo.state.attributes.unit_of_measurement).toBe('CAD');
+  expect(entityInfo.registration.disabled_by).toBeNull();
+  await panel.getByRole('button', {name:'Home Assistant entity',exact:true}).click();
+  await expect(panel.locator('dialog pre').first()).toHaveText(entityInfo.state.entity_id);
+  await expect(panel.locator('dialog pre').last()).toContainText(`entity: ${entityInfo.state.entity_id}`);
+  await panel.getByRole('button', {name:'Open entity',exact:true}).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('link', {name:'Show more'})).toHaveAttribute('href', new RegExp(entityInfo.state.entity_id));
+  await page.getByRole('button', {name:'Close',exact:true}).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await panel.getByRole('button', {name:'Export budgets'}).click();
   const download = await downloadPromise;
@@ -236,6 +271,15 @@ test('income saves without category and changing direction requires an expense c
   await panel.getByRole('button', {name:'Save changes', exact:true}).click();
   await expect(panel.locator('.category-list .amount')).toHaveText(['CAD 1,000.00', 'CAD 0.00', 'CAD 0.00']);
   await expect(panel.locator('.category-list').getByText('100% of expenses')).toBeVisible();
+  // A newly added income moves above an expense created earlier.
+  await panel.getByRole('button', {name:'Add entry',exact:true}).click();
+  await panel.getByLabel('Money flow').selectOption('income');
+  await panel.getByLabel('Entry name').fill('Bonus test');
+  await panel.getByLabel('Amount', {exact:true}).fill('50');
+  await panel.getByRole('button', {name:'Add entry',exact:true}).last().click();
+  await expect(panel.locator('tbody').first()).toHaveAttribute('data-group', 'income');
+  await expect(panel.locator('tbody').first().getByText('Bonus test', {exact:true})).toBeVisible();
+  await expect(panel.locator('tbody[data-group="investment"]').getByText('Paycheck test', {exact:true})).toBeVisible();
   await page.reload();
   await panel.getByRole('button', {name:'Category correction test CAD'}).click();
   await panel.getByRole('button', {name:'Edit Paycheck test'}).click();

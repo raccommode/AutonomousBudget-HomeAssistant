@@ -22,9 +22,10 @@ Create budgets, spread recurring commitments across paydays, and see what's left
 
 - **Multiple budgets.** Give each budget a name and currency: everyday life, a project, or a future plan.
 - **Your own rhythm.** Daily, weekly, every two weeks, monthly, or yearly. Each budget can optionally set its own pay period and payday. Leave them empty to use the global defaults; two weeks is the initial default.
+- **Grouped entries.** Income appears first, followed by expenses grouped as Investment, Mandatory, and Optional. Each group shows its total for the selected calculation view; older expenses awaiting classification stay in a separate group.
 - **Income and expenses.** Every entry has a money-flow direction. Income has no category. Each expense has one of three categories: **Investment**, **Mandatory**, or **Optional**.
 - **Recurring commitments.** Add Netflix, rent, a paycheck, or a savings contribution with its amount, currency, renewal date, and frequency. One-time entries, end dates, and pausing are supported too.
-- **A plan for each payday.** Compare income and expenses on the same time scale, then switch to **Due dates** to see actual scheduled cash flow. Browse previous and upcoming periods.
+- **A plan for each payday.** Compare income and expenses on the same time scale, then switch to **Due dates** to see actual scheduled cash flow. Browse previous and upcoming periods using the two arrow buttons.
 - **Progressive reserves.** See the projected amount set aside for each recurring expense, its next renewal, and completed / remaining pay periods.
 - **Optional available balance.** Enter an account balance and credit owed per budget to estimate what remains after projected reserves. Balances are manual and can be left empty.
 - **Home Assistant dashboards.** A bundled visual card and eleven native monetary sensors per budget. No separate card download or manual resource registration.
@@ -180,7 +181,9 @@ Each budget is a device with eleven monetary sensors:
 | Projected reserve | Total projected reserve for recurring expenses as of today |
 | Available after reserves | Manual account balance minus credit owed and projected reserves; unknown until an account balance is entered |
 
-Find the exact entity IDs in **Settings → Devices & services → Autonomous Budget**. Each sensor includes `budget_id`, `metric`, `calculation`, `reserve_date`, effective `period`, `reference_date`, `period_start`, and exclusive `period_end` attributes. IDs remain stable when you rename a budget. Sensors update on edits and at local midnight, and can be used in built-in cards, templates, history, and automations.
+For the reserve sensor, click **Home Assistant entity** beside the total in **Projected reserves**. The dialog shows the actual entity ID and ready-to-paste dashboard YAML, and **Open entity** opens its native Home Assistant details. Every budget already exposes this sensor, including when the projected reserve is zero; no optional account balance is required.
+
+You can also find all entity IDs in **Settings → Devices & services → Autonomous Budget**. Each sensor includes `budget_id`, `metric`, `calculation`, `reserve_date`, effective `period`, `reference_date`, `period_start`, and exclusive `period_end` attributes. IDs remain stable when you rename a budget. Sensors update on edits and at local midnight, and can be used in built-in cards, templates, history, and automations.
 
 ```yaml
 # Replace these example IDs with the entities from your installation.
@@ -213,9 +216,9 @@ Data is stored in `.storage/autonomous_budget` within the Home Assistant configu
 
 Removing the integration keeps its stored budgets so reinstalling can restore them. Deleting a budget in the panel removes its entries and sensors. Use a Home Assistant backup before deleting data you may need again. The JSON export is for inspection and portability; an import UI is not included in this release.
 
-## Updating from 0.1.0 or 0.2.0
+## Updating from an earlier version
 
-Download **0.2.1** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+Download **0.2.2** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
 
 This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
 

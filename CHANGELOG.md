@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2 — 2026-09-03
+
+- Simplify period navigation to the previous and next arrow buttons, removing the Today button.
+- Group budget entries with income first, then expenses by Investment, Mandatory, and Optional, with group totals and a separate group for older expenses awaiting classification.
+- Add direct access to each budget's existing native projected-reserve sensor, including its actual entity ID, dashboard YAML, and Home Assistant entity details.
+- Verify reserve entities are enabled by default, monetary, and consistent with the panel. Update English/French UI, screenshots, and dashboard instructions.
+
 ## 0.2.1 — 2026-09-03
 
 Correct which entries have categories.

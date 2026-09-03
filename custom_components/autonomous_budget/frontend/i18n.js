@@ -1,5 +1,8 @@
 /** English source strings and French UI translations. User content is excluded. */
 const fr = {
+  "Home Assistant entity": "Entité Home Assistant", "Reserve entity": "Entité de réserve", "Entity ID": "Identifiant de l’entité", "Add to a dashboard": "Ajouter à un tableau de bord", "Open entity": "Ouvrir l’entité",
+  "This sensor tracks the total projected reserve for this budget, in its currency. It updates after edits and at local midnight.": "Ce capteur suit la réserve prévisionnelle totale de ce budget, dans sa devise. Il est actualisé après les modifications et à minuit, heure locale.",
+  "The reserve entity is unavailable. In Settings → Devices & services → Autonomous Budget, open this budget and enable its Projected reserve sensor if disabled. Restart Home Assistant after updating the integration.": "L’entité de réserve est indisponible. Dans Paramètres → Appareils et services → Autonomous Budget, ouvrez ce budget et activez son capteur Réserve prévisionnelle s’il est désactivé. Redémarrez Home Assistant après la mise à jour de l’intégration.",
   "To categorize": "À catégoriser", "Choose a category": "Choisissez une catégorie",
   "Per pay period": "Par période de paie",
   "Due dates": "Échéances",

@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc, icon, labels } from "./shared.js?v=0.2.1";
+import { BudgetLiveElement, baseCSS, esc, icon, labels } from "./shared.js?v=0.2.2";
 
 class AutonomousBudgetCard extends BudgetLiveElement {
   setConfig(config) { this.config = { view: "plan", show_reserves: true, show_categories: true, show_upcoming: true, ...config }; this.render(); }

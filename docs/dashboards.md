@@ -36,6 +36,8 @@ entities:
 
 ## Reserve and available-balance card
 
+In the sidebar, click **Home Assistant entity** beside the **Projected reserves** total to get the exact reserve sensor ID and YAML for the selected budget. **Open entity** opens its native details. This sensor is enabled by default, uses the budget currency, and updates after edits and at local midnight. Its value always represents today, even when the sidebar is browsing another period.
+
 ```yaml
 type: entities
 title: Money set aside

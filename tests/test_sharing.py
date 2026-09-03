@@ -229,6 +229,29 @@ def test_one_time_common_reserve_follows_today_and_resets_at_each_person_next_pa
     assert summarize_budgets(data, SETTINGS, date(2026, 8, 13), 0)[0]["reserves"]["amount"] == "0.00"
 
 
+def test_common_reserve_matches_current_payment_to_own_income_even_when_navigating():
+    data = household()
+    salary = bill(name="Salary", direction="income", amount="2000", recurrence="biweekly", renewal_date="2026-07-16")
+    data[0]["items"] = [salary]
+    data[0]["account_balance"] = "1000.00"
+    for offset in (-10, 0, 10):
+        axel, marie, common = summarize_budgets(data, SETTINGS, date(2026, 8, 1), offset)
+        assert axel["reserves"]["amount"] == "0.00"
+        assert axel["available_balance"] == "1000.00"
+        contribution = axel["items"][-1]
+        assert contribution["amount"] == contribution["planned_amount"] == "720.00"
+        assert contribution["reserve"]["payment_date"] == "2026-07-30"
+        assert contribution["reserve"]["excluded_reason"] == "income_date"
+        assert marie["reserves"]["amount"] == "-480.00"  # Another person's income never qualifies.
+        assert "excluded_reason" not in common["items"][0]["reserve"]
+    data[0]["items"][0]["renewal_date"] = "2026-08-13"
+    # Next payday matches, but no income on this contribution's actual payment date.
+    assert summarize_budgets(data, SETTINGS, date(2026, 8, 1), 0)[0]["reserves"]["amount"] == "-720.00"
+    data[0]["items"][0]["renewal_date"] = "2026-07-16"
+    data[0]["items"][0]["active"] = False
+    assert summarize_budgets(data, SETTINGS, date(2026, 8, 1), 0)[0]["reserves"]["amount"] == "-720.00"
+
+
 @pytest.mark.parametrize("percentage", ["-1", "100.01", "NaN", True, "0.001"])
 def test_invalid_percentages_rejected(percentage):
     with pytest.raises(ValidationError):

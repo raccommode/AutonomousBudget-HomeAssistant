@@ -219,3 +219,53 @@ def test_native_sensor_values_keep_legacy_cashflow_and_add_planning_metrics():
     assert BudgetSensor(store, "home", "planned_expenses").native_value == "129.23"
     assert BudgetSensor(store, "home", "reserved").native_value == "-93.33"
     assert BudgetSensor(store, "home", "available_balance").native_value == "-63.33"
+
+
+def test_bill_on_income_date_is_excluded_without_changing_its_amount_or_expense_totals():
+    bill = expense()
+    income = expense(name="Salary", direction="income", amount="2000", renewal_date="2026-02-28")
+    original = summary([bill], account_balance="500", credit_balance="20")
+    result = summary([bill, income], account_balance="500", credit_balance="20")
+    reserve = result["items"][0]["reserve"]
+    assert reserve["excluded_reason"] == "income_date"
+    assert reserve["payment_date"] == "2026-02-28"
+    assert reserve["required_amount"] == result["items"][0]["amount"] == "280.00"
+    assert reserve["reserved_amount"] == result["reserves"]["amount"] == "0.00"
+    assert reserve["progress"] == 0
+    assert result["available_balance"] == "480.00"
+    assert result["totals"]["expenses"] == original["totals"]["expenses"] == "280.00"
+    assert result["plan"]["expenses"] == original["plan"]["expenses"] == "129.23"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"active": False},
+        {"amount": "0"},
+        {"end_date": "2026-02-27", "renewal_date": "2026-01-28"},
+        {"renewal_date": "2026-03-28"},
+        {"renewal_date": "2026-02-27"},
+        {"currency": "USD", "amount": "0.01", "exchange_rate": "0.00001"},
+    ],
+)
+def test_absent_paused_zero_ended_or_different_date_income_does_not_exclude_reserve(changes):
+    income = expense(**({"direction": "income", "amount": "2000", "renewal_date": "2026-02-28"} | changes))
+    result = summary([expense(), income])
+    assert result["reserves"]["amount"] == "-93.33"
+    assert "excluded_reason" not in result["items"][0]["reserve"]
+
+
+def test_one_time_income_and_month_end_matching_use_actual_dates_not_frequency_labels():
+    bill = expense()
+    salary = expense(direction="income", amount="2000")
+    assert summary([bill, salary])["reserves"]["amount"] == "0.00"  # Both Jan 31 anchors clamp to Feb 28.
+    one_off = expense(direction="income", amount="50", recurrence="once", renewal_date="2026-02-28")
+    assert summary([bill, one_off])["reserves"]["amount"] == "0.00"
+    monthly_on_28 = expense(direction="income", amount="2000", renewal_date="2026-02-28")
+    budget = {"id": "home", "name": "Home", "currency": "CAD", "items": [bill, monthly_on_28]}
+    defaults = {"period": "biweekly", "anchor": "2026-01-31"}
+    february = summarize(budget, defaults, date(2026, 2, 1))
+    assert february["reserves"]["amount"] == "0.00"
+    assert summarize(budget, defaults, date(2026, 2, 1), 10)["reserves"] == february["reserves"]
+    march = summarize(budget, defaults, date(2026, 3, 1))
+    assert march["reserves"]["amount"] == "-93.33"  # March 28 income does not cover March 31 bill.

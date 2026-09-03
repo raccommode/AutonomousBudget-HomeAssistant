@@ -107,6 +107,10 @@ mode: single
 
 A numeric-state trigger fires when the value crosses the threshold; it does not repeatedly notify while the state remains below it. Sensor values describe a plan, not a bank account. Decide which dashboards and notifications should display household financial information.
 
+## Expenses paid with income
+
+Expenses scheduled on the same date as a positive, active income in their own budget are excluded from reserves, including automatic common contributions paid at the start of the current pay period. Their expense totals and the **Common budget amount** stay unchanged. The card and native reserve / available-balance sensors update immediately when income entries are edited or paused. The sidebar keeps the original expense amount visible with **Paid with income**.
+
 ## Sensor history
 
 The sensors use Home Assistant's monetary device class. They deliberately do not expose a long-term statistics state class: totals are recomputed period projections, not cumulative or measured transactions. Home Assistant Recorder can still keep normal entity history, subject to your own Recorder configuration.
@@ -115,4 +119,4 @@ The sensors use Home Assistant's monetary device class. They deliberately do not
 
 Choose a common budget in the same card editor to see its expense plan and projected reserve. Choose a personal budget to include its automatic mandatory contributions alongside its own expenses. Updates to the common budget or its allocation reach both cards and native sensors automatically.
 
-Each sensor exposes a `budget_type` attribute (`personal` or `shared`) in addition to `budget_id` and `metric`. Existing entity IDs remain stable. Common reserves use participants' paydays when an allocation is configured; personal budgets reserve the full current common contribution and show it as a negative amount. Their reserves stay tied to today, including when navigating other periods. Common and personal budgets show different accounts; their reserve values should be interpreted per account. Do not sum common expense sensors with the linked personal contribution sensors to calculate a household expense total: they describe the same commitments from two perspectives.
+Each sensor exposes a `budget_type` attribute (`personal` or `shared`) in addition to `budget_id` and `metric`. Existing entity IDs remain stable. Common reserves use participants' paydays when an allocation is configured; personal budgets reserve the full current common contribution unless it is paid on a scheduled income date. Reserved amounts are negative deductions. Their reserves stay tied to today, including when navigating other periods. Common and personal budgets show different accounts; their reserve values should be interpreted per account. Do not sum common expense sensors with the linked personal contribution sensors to calculate a household expense total: they describe the same commitments from two perspectives.

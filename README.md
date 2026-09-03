@@ -99,7 +99,7 @@ Amounts update when expenses, percentages, exchange rates, names, or pay schedul
 
 Percentages support two decimal places and may total up to **100%**. A partial allocation shows the unallocated percentage. Set a person's share to zero to unlink it. Deleting a personal budget removes its allocation without increasing anyone else's percentage; deleting the common budget removes its automatic contributions. Allocations cannot link to another common budget. For the same period and expense total, rounding remainders are distributed deterministically so a full allocation does not create or lose a cent. Different pay frequencies can produce small annual rounding differences.
 
-With participants configured, **common reserves** advance on each participant's own paydays strictly between the previous and next bill dates, following the ALVES model. Installments through today count as projected savings; the bill's due date starts the next reserve cycle. Each personal budget also reserves its **full contribution for the current pay period**, with a dedicated line in Projected reserves. This amount resets from the new period’s contribution on payday, and stays tied to today when browsing past or future periods. A one-time common expense is included only during the person’s period containing that expense. The common budget separately projects savings for its own bills. An unallocated common budget uses its own pay schedule for the usual reserve estimate. These are theoretical savings, not recorded transfers; update manual account balances to reflect actual contributions.
+With participants configured, **common reserves** advance on each participant's own paydays strictly between the previous and next bill dates, following the ALVES model. Installments through today count as projected savings; the bill's due date starts the next reserve cycle. Each personal budget also reserves its **full contribution for the current pay period** unless it is paid on a scheduled income date, with a dedicated line in Projected reserves. This amount resets from the new period’s contribution on payday, and stays tied to today when browsing past or future periods. A one-time common expense is included only during the person’s period containing that expense. The common budget separately projects savings for its own bills. An unallocated common budget uses its own pay schedule for the usual reserve estimate. These are theoretical savings, not recorded transfers; update manual account balances to reflect actual contributions.
 
 Shared and personal budgets both work with the existing dashboard card and eleven sensors. Exports keep allocation definitions and omit automatic contribution rows, which are regenerated from the common budget.
 
@@ -136,6 +136,16 @@ The planning convention uses 364 daily periods, 52 weeks, 26 two-week periods, 1
 
 Active recurring commitments enter the regular plan even before their first renewal, so you can prepare for future bills. They leave the plan once no occurrence remains on or after the selected period's start. **One-time entries** contribute their full amount only in the period when due. Paused entries contribute nothing. Expense categories use the selected view's calculation; income remains uncategorized.
 
+### Expenses paid on an income date
+
+An expense due on the same calendar date as a positive, active income in the **same budget** is treated as paid directly with that income. It contributes **zero to projected reserves**. Its amount, expense category, scheduled cash flow, per-pay-period plan, and common-budget amount stay unchanged.
+
+The expense remains visible at its original amount, with **Paid with income** and **Not included in projected reserves** in the reserve list. It does not show a misleading zero expense amount or a reserve progress bar. The negative reserve total, available balance, dashboard card, and native sensors all use the adjusted calculation.
+
+The comparison uses actual scheduled dates, including recurrence, month-end adjustments, first due dates, inclusive end dates, and one-time income. Paused income, zero income, and income from another budget do not qualify. A budget's reference date alone is not an income entry. The rule follows dates, regardless of whether the income covers all expenses on that date.
+
+For an ordinary recurring bill, the comparison targets its **next renewal**. It is checked again each cycle: a February 28 match does not automatically exclude a March 31 bill. For an automatic common contribution, it uses the **start of the current personal pay period**, when that contribution is scheduled, rather than the next payday. These decisions stay tied to today when browsing past or future periods. Pausing or moving an income restores reserves for expenses that no longer match.
+
 ### Projected reserves and available money
 
 Reserves follow ALVES's installment model, using each budget's effective pay period and reference date. They represent what should already be set aside, assuming earlier installments were saved and due bills were paid. They are **estimates, not tracked savings or bank transactions**.
@@ -149,7 +159,7 @@ For each recurring expense:
 
 For example, a CAD 280 monthly bill due January 31, with biweekly pay anchored to January 31, has a CAD 93.33 reserve on February 1 toward February 28: one of three installments, with two future paydays left. Its regular two-week allocation is CAD 129.23. The regular allocation and the reserve installment differ because monthly cycles do not contain a fixed whole number of two-week pay periods. On rollover, the reserve can start partially funded when fewer future paydays remain than the planned count.
 
-Daily, weekly, monthly, and yearly pay periods use the same method. The reference date may be in the past or future and is never forced to a particular weekday. One-time entries have no automatic reserve. Reserves cover the **next renewal of each recurring expense**, not every payment before the next payday. The reserve view always uses **today**, even when browsing another period.
+Daily, weekly, monthly, and yearly pay periods use the same method. The reference date may be in the past or future and is never forced to a particular weekday. One-time entries have no automatic reserve. Except for the income-date rule above, reserves cover the **next renewal of each recurring expense**, not every payment before the next payday. The reserve view always uses **today**, even when browsing another period.
 
 Optionally enter **Account balance** and **Credit owed** in the budget currency:
 
@@ -243,7 +253,7 @@ Removing the integration keeps its stored budgets so reinstalling can restore th
 
 ## Updating from an earlier version
 
-Download **0.4.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+Download **0.4.1** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
 
 This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
 

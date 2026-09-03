@@ -200,7 +200,7 @@ def summarize(
     budget: dict, settings: dict, today: date, offset: int = 0, *, shared_targets: list | None = None
 ) -> dict:
     """Summarize scheduled cash flow; this is not a bank account balance."""
-    from .planning import next_occurrence, planned_amount, reserve_accrual
+    from .planning import income_on_date, next_occurrence, planned_amount, reserve_accrual
 
     period = budget.get("period") or settings["period"]
     anchor = budget.get("anchor") or settings["anchor"]
@@ -215,6 +215,7 @@ def summarize(
     review_planned = Decimal(0)
     entries = []
     due = []
+    income_dates = {}
     for item in budget["items"]:
         dates = occurrences(item, start, end)
         converted = quantize(Decimal(item["amount"]) * Decimal(item["exchange_rate"]), currency)
@@ -232,6 +233,23 @@ def summarize(
             reserve = shared_reserve(item, currency, shared_targets, settings, today)
         else:
             reserve = reserve_accrual(item, currency, period, date.fromisoformat(anchor), today)
+        if reserve:
+            # A common contribution is paid at the start of today's period;
+            # ordinary reserves target the next bill. Navigation changes neither.
+            payment_date = reserve.get("payment_date", reserve["next_due"])
+            if payment_date not in income_dates:
+                income_dates[payment_date] = income_on_date(budget["items"], currency, date.fromisoformat(payment_date))
+            if income_dates[payment_date]:
+                reserve = reserve | {
+                    "reserved_amount": str(quantize(Decimal(0), currency)),
+                    "excluded_reason": "income_date",
+                    "payment_date": payment_date,
+                    "progress": 0,
+                    "completed_paychecks": 0,
+                    "remaining_paychecks": 0,
+                    "total_paychecks": 0,
+                    "amount_per_paycheck": str(quantize(Decimal(0), currency)),
+                }
         reserved += Decimal(reserve["reserved_amount"]) if reserve else Decimal(0)
         totals["income" if item["direction"] == "income" else "expenses"] += amount
         plan["income" if item["direction"] == "income" else "expenses"] += planned

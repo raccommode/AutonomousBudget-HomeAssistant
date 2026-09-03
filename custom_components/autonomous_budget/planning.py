@@ -44,6 +44,16 @@ def planned_amount(item: dict, currency: str, period: str, start: date, end: dat
     return quantize(amount * FREQUENCIES[item["recurrence"]] / FREQUENCIES[period], currency)
 
 
+def income_on_date(items: list[dict], currency: str, day: date) -> bool:
+    """Match a real, positive scheduled income in this budget, including one-offs."""
+    return any(
+        item["direction"] == "income"
+        and quantize(Decimal(item["amount"]) * Decimal(item["exchange_rate"]), currency) > 0
+        and next_occurrence(item, day) == day
+        for item in items
+    )
+
+
 def period_index(day: date, period: str, anchor: date) -> int:
     """Index of the last payday on or before a date, including before the anchor."""
     if period in ("daily", "weekly", "biweekly"):

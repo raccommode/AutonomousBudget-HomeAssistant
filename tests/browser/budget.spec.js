@@ -152,6 +152,8 @@ test('French panel, optional pay schedule, and untranslated user names', async (
   await expect(panel.locator('tbody[data-group="investment"] h3')).toContainText('Investissement');
   await expect(panel.locator('.period-nav button')).toHaveCount(2);
   await expect(panel.locator('.period-nav')).not.toContainText('Aujourd’hui');
+  await expect(panel.locator('.reserve-entry.excluded').filter({hasText:'Future fund'})).toContainText('Payé avec le revenu');
+  await expect(panel.locator('.reserve-entry.excluded').filter({hasText:'Future fund'})).toContainText('250,00 CAD');
   await page.screenshot({path:'docs/screenshot-french.png',fullPage:true});
 });
 
@@ -487,3 +489,71 @@ for (const language of ['English', 'French']) {
     }
   });
 }
+
+test('income-day expenses and common contributions stay visible but leave reserves, cards, and sensors', async ({ page }) => {
+  const panel = page.locator('autonomous-budget-panel');
+  const ids = [];
+  const today = await panel.evaluate(p => p.data.today);
+  const shifted = days => { const day = new Date(`${today}T12:00:00Z`); day.setUTCDate(day.getUTCDate() + days); return day.toISOString().slice(0, 10); };
+  async function mutate(action, payload) {
+    const {result, revision} = await panel.evaluate(async (p, {action, payload}) => {
+      const revision = p.data.revision;
+      const result = await p.hass.callWS({type:'autonomous_budget/mutate', action, payload, revision});
+      return {result, revision};
+    }, {action, payload});
+    await expect.poll(() => panel.evaluate(p => p.data.revision)).toBeGreaterThan(revision);
+    return result;
+  }
+  try {
+    const personal = (await mutate('budget_create', {name:'Income date test', currency:'CAD', period:'biweekly', anchor:today, account_balance:'500', credit_balance:'20'})).id;
+    ids.push(personal);
+    const common = (await mutate('budget_create', {name:'Shared income date test', currency:'CAD', kind:'shared', allocations:[{budget_id:personal, percentage:'60'}]})).id;
+    ids.push(common);
+    const base = {direction:'expense', category:'mandatory', currency:'CAD', recurrence:'biweekly', renewal_date:today};
+    await mutate('item_create', {...base, budget_id:common, name:'Common bill', amount:'100'});
+    await mutate('item_create', {...base, budget_id:personal, name:'Direct debit', amount:'180', renewal_date:shifted(1)});
+    await mutate('item_create', {...base, budget_id:personal, name:'Other bill', amount:'80', renewal_date:shifted(2)});
+    const salary = (await mutate('item_create', {...base, budget_id:personal, name:'Salary', amount:'1000', direction:'income'})).id;
+    const bonus = (await mutate('item_create', {...base, budget_id:personal, name:'Bonus', amount:'50', direction:'income', recurrence:'once', renewal_date:shifted(1)})).id;
+    await panel.locator(`.budget-tab[data-id="${personal}"]`).click();
+    await expect(panel.locator('.reserve-total')).toHaveText('-CAD 80.00');
+    await expect(panel.locator('.available-summary strong')).toHaveText('CAD 400.00');
+    const direct = panel.locator('.reserve-entry').filter({hasText:'Direct debit'});
+    await expect(direct).toHaveClass(/excluded/);
+    await expect(direct).toContainText('Paid with income');
+    await expect(direct.locator('.reserve-amount')).toContainText('CAD 180.00');
+    await expect(direct.getByRole('progressbar')).toHaveCount(0);
+    await expect(panel.locator('.reserve-entry.excluded').filter({hasText:'Shared income date test'})).toContainText('CAD 60.00');
+    await expect(panel.locator('tbody[data-group="mandatory"]')).toContainText('CAD 320.00');
+    await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'reserved')?.state, personal)).toBe('-80.00');
+    await panel.evaluate(async (p, id) => {
+      await customElements.whenDefined('autonomous-budget-card');
+      const card = document.createElement('autonomous-budget-card');
+      card.setConfig({type:'custom:autonomous-budget-card', budget_id:id}); card.hass = p.hass;
+      document.body.append(card);
+    }, personal);
+    const card = page.locator('autonomous-budget-card');
+    await expect(card.locator('[data-section="show_reserves"]')).toContainText('-CAD 80.00');
+    await expect(card.locator('[data-section="show_shared"]')).toContainText('CAD 60.00');
+    await expect(card.locator('[data-section="show_available_balance"]')).toContainText('CAD 400.00');
+    await expect(card.locator('[data-section="show_expenses"]')).toContainText('CAD 320.00');
+    await card.evaluate(card => card.remove());
+    await panel.getByRole('button', {name:'Next period', exact:true}).click();
+    await expect(panel.locator('.reserve-total')).toHaveText('-CAD 80.00');
+    await expect(direct).toContainText('Paid with income');
+    await panel.getByRole('button', {name:'Previous period', exact:true}).click();
+    await page.reload();
+    await panel.locator(`.budget-tab[data-id="${personal}"]`).click();
+    await expect(panel.locator('.reserve-total')).toHaveText('-CAD 80.00');
+    await mutate('item_update', {...base, budget_id:personal, item_id:bonus, name:'Bonus', amount:'50', direction:'income', recurrence:'once', renewal_date:shifted(1), active:false});
+    await expect(panel.locator('.reserve-total')).toHaveText('-CAD 260.00');
+    await expect(direct).not.toHaveClass(/excluded/);
+    await mutate('item_update', {...base, budget_id:personal, item_id:salary, name:'Salary', amount:'1000', direction:'income', active:false});
+    await expect(panel.locator('.reserve-total')).toHaveText('-CAD 320.00');
+    await expect(panel.locator('.available-summary strong')).toHaveText('CAD 160.00');
+    await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'reserved')?.state, personal)).toBe('-320.00');
+  } finally {
+    await page.locator('autonomous-budget-card').evaluateAll(cards => cards.forEach(card => card.remove()));
+    for (const id of ids.reverse()) if (await panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), id)) await mutate('budget_delete', {budget_id:id});
+  }
+});

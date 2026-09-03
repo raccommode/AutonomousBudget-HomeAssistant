@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 — 2026-09-03
+
+- Exclude expenses due on a scheduled positive income date in the same budget from projected reserves, treating them as paid directly with that income.
+- Apply the rule to automatic common contributions using their current pay-period payment date, independently of period navigation.
+- Preserve original expense amounts, cash-flow and planning totals, categories, and common amounts. Show Paid with income instead of a zero expense value in the reserve list.
+- Keep cards, native monetary sensors, and available balances synchronized. Respect paused, zero, future, ended, and one-time income, and actual month-end dates.
+- Add English/French labels and regression coverage for date matching, unchanged amounts, live income changes, and persisted behavior.
+
 ## 0.4.0 — 2026-09-03
 
 - Include each personal budget's full current common-budget contribution in projected reserves, using its own optional pay period and payday. Keep today's reserve unchanged when browsing other periods.

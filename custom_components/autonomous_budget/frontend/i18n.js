@@ -1,5 +1,8 @@
 /** English source strings and French UI translations. User content is excluded. */
 const fr = {
+  "Paid with income": "Payé avec le revenu",
+  "Payment date": "Date de paiement",
+  "Not included in projected reserves.": "Non compté dans les réserves prévisionnelles.",
   "Common budget amount": "Montant du commun",
   "Show budget title": "Afficher le titre du budget",
   "Show period and dates": "Afficher la période et les dates",

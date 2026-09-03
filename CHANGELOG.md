@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — 2026-09-03
+
+- Include each personal budget's full current common-budget contribution in projected reserves, using its own optional pay period and payday. Keep today's reserve unchanged when browsing other periods.
+- Show projected reserves as negative deductions in the panel, dashboard card, and native Home Assistant sensors. Keep available-balance arithmetic correct and zero unsigned.
+- Add a common-budget amount to the dashboard card without counting the contribution twice in expenses.
+- Add 14 independent visual-editor and YAML controls for the card's title, period, icon, remaining amount, calculation label, income, expenses, common amount, categories, upcoming payments, reserves, available balance, explanation, and navigation link.
+- Preserve existing reserve sensor IDs and prior card settings. Update English/French controls and add coverage for isolated blocks, saved configurations, reserve signs, and pay-period rollover.
+
 ## 0.3.0 — 2026-09-03
 
 - Add personal and shared budget types with percentage allocations inspired by ALVES.

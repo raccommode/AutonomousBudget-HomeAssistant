@@ -29,7 +29,7 @@ Create budgets, spread recurring commitments across paydays, and see what's left
 - **A plan for each payday.** Compare income and expenses on the same time scale, then switch to **Due dates** to see actual scheduled cash flow. Browse previous and upcoming periods using the two arrow buttons.
 - **Progressive reserves.** See the projected amount set aside for each recurring expense, its next renewal, and completed / remaining pay periods.
 - **Optional available balance.** Enter an account balance and credit owed per budget to estimate what remains after projected reserves. Balances are manual and can be left empty.
-- **Home Assistant dashboards.** A bundled visual card and eleven native monetary sensors per budget. No separate card download or manual resource registration.
+- **Home Assistant dashboards.** A bundled visual card with an optional common-budget amount and 14 independent display controls, plus eleven native monetary sensors per budget. No separate card download or manual resource registration.
 - **Local storage.** Your budgets stay in Home Assistant. No account, cloud service, bank connection, telemetry, or runtime CDN dependency.
 - **English and French.** The panel, forms, dashboard card, messages, and sensor names follow your Home Assistant language. Your own budget and entry names are never translated.
 - **Export.** Download your budget definitions as a readable JSON file.
@@ -99,7 +99,7 @@ Amounts update when expenses, percentages, exchange rates, names, or pay schedul
 
 Percentages support two decimal places and may total up to **100%**. A partial allocation shows the unallocated percentage. Set a person's share to zero to unlink it. Deleting a personal budget removes its allocation without increasing anyone else's percentage; deleting the common budget removes its automatic contributions. Allocations cannot link to another common budget. For the same period and expense total, rounding remainders are distributed deterministically so a full allocation does not create or lose a cent. Different pay frequencies can produce small annual rounding differences.
 
-With participants configured, **common reserves** advance on each participant's own paydays strictly between the previous and next bill dates, following the ALVES model. Installments through today count as projected savings; the bill's due date starts the next reserve cycle. The common budget holds this reserve, so automatic personal contributions do **not** create a second reserve. An unallocated common budget uses its own pay schedule for the usual reserve estimate. These are theoretical savings, not recorded transfers; update manual account balances to reflect actual contributions.
+With participants configured, **common reserves** advance on each participant's own paydays strictly between the previous and next bill dates, following the ALVES model. Installments through today count as projected savings; the bill's due date starts the next reserve cycle. Each personal budget also reserves its **full contribution for the current pay period**, with a dedicated line in Projected reserves. This amount resets from the new period’s contribution on payday, and stays tied to today when browsing past or future periods. A one-time common expense is included only during the person’s period containing that expense. The common budget separately projects savings for its own bills. An unallocated common budget uses its own pay schedule for the usual reserve estimate. These are theoretical savings, not recorded transfers; update manual account balances to reflect actual contributions.
 
 Shared and personal budgets both work with the existing dashboard card and eleven sensors. Exports keep allocation definitions and omit automatic contribution rows, which are regenerated from the common budget.
 
@@ -153,7 +153,9 @@ Daily, weekly, monthly, and yearly pay periods use the same method. The referenc
 
 Optionally enter **Account balance** and **Credit owed** in the budget currency:
 
-`Available after reserves = account balance − credit owed − projected reserves`
+`Available after reserves = account balance − credit owed + projected reserves`
+
+Reserves are negative deductions in the panel, card, and native sensor (for example **−CAD 120.00**); zero stays **CAD 0.00**. With a CAD 100 account and CAD 20 credit owed, a −CAD 120 reserve gives **−CAD 40 available**. Progress, target bill amounts, and installment amounts remain positive.
 
 Zero balances and negative available amounts are preserved; account overdrafts are allowed. Credit owed must be nonnegative. Leave the account balance empty to hide the estimate. Update these manual balances yourself after transactions; no bank synchronization or transfers are performed.
 
@@ -241,11 +243,11 @@ Removing the integration keeps its stored budgets so reinstalling can restore th
 
 ## Updating from an earlier version
 
-Download **0.3.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+Download **0.4.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
 
 This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
 
-The three category sensors now measure expenses. Their entity IDs remain stable, so an existing ID may still end in `_income`; their displayed names and values are corrected. Prior Recorder history remains as recorded under the earlier calculation. The overall income, expense, remaining, and reserve calculations are unchanged. No storage reset is needed.
+The three category sensors now measure expenses. Their entity IDs remain stable, so an existing ID may still end in `_income`; their displayed names and values are corrected. Prior Recorder history remains as recorded under the earlier calculation. Existing income, expense, and remaining calculations stay the same. In 0.4.0, reserves are negative deductions and personal reserves include the full current common-budget contribution. Existing reserve sensor IDs stay the same; their earlier Recorder history keeps its original sign. No storage reset is needed.
 
 The sidebar and custom card now default to **Per pay period**. Choose **Due dates**, or set `view: cashflow` on the card, for the earlier cash-flow display. The new balance fields are empty until you enter them.
 

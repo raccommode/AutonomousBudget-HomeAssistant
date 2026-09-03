@@ -78,6 +78,7 @@ def summarize_budgets(budgets: list[dict], settings: dict, today: date, offset: 
             start, end = period_bounds(today, period, anchor, offset)
             amount = amounts(source, period, start, end)[target["id"]]
             current_start, current_end = period_bounds(today, period, anchor)
+            reserved_amount = amounts(source, period, current_start, current_end)[target["id"]]
             next_date = max(start, current_start if current_start == today else current_end)
             next_start, next_end = period_bounds(next_date, period, anchor)
             next_amount = amounts(source, period, next_start, next_end)[target["id"]]
@@ -109,6 +110,7 @@ def summarize_budgets(budgets: list[dict], settings: dict, today: date, offset: 
                     "shared_source_id": source["id"],
                     "shared_percentage": allocation["percentage"],
                     "shared_next_due": next_date.isoformat() if next_amount else None,
+                    "contribution_reserve": contribution_reserve(reserved_amount, current_end),
                     "locked": True,
                 }
             )
@@ -136,6 +138,23 @@ def summarize_budgets(budgets: list[dict], settings: dict, today: date, offset: 
             result["sharing"] = shares[budget["id"]]
         results.append(result)
     return results
+
+
+def contribution_reserve(amount: Decimal, period_end: date) -> dict | None:
+    """Hold the current personal contribution in full until the next pay period."""
+    if not amount:
+        return None
+    return {
+        "next_due": period_end.isoformat(),
+        "required_amount": str(amount),
+        "reserved_amount": str(amount),
+        "amount_per_paycheck": str(amount),
+        "total_paychecks": 1,
+        "completed_paychecks": 1,
+        "remaining_paychecks": 0,
+        "progress": 1,
+        "contribution": True,
+    }
 
 
 def previous_due(item: dict, due: date) -> date:

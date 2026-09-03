@@ -139,15 +139,17 @@ def test_partial_allocation_and_multiple_shared_budgets():
     assert common["sharing"]["unallocated_percentage"] == "40"
 
 
-def test_alves_alternating_paydays_reserve_is_only_in_common_account():
+def test_common_and_personal_reserves_are_negative_and_deduct_available_balances():
     data = household()
     data[2]["items"] = [bill(amount="100", recurrence="biweekly", renewal_date="2026-07-16")]
     data[0]["account_balance"] = data[1]["account_balance"] = data[2]["account_balance"] = "500.00"
     assert summarize_budgets(data, SETTINGS, date(2026, 7, 16), 0)[2]["reserves"]["amount"] == "0.00"
     axel, marie, common = summarize_budgets(data, SETTINGS, date(2026, 7, 23), 0)
-    assert axel["reserves"]["amount"] == marie["reserves"]["amount"] == "0.00"
-    assert axel["available_balance"] == marie["available_balance"] == "500.00"
-    assert common["reserves"]["amount"] == "40.00"
+    assert axel["reserves"]["amount"] == "-60.00"
+    assert marie["reserves"]["amount"] == "-40.00"
+    assert axel["available_balance"] == "440.00"
+    assert marie["available_balance"] == "460.00"
+    assert common["reserves"]["amount"] == "-40.00"
     assert common["available_balance"] == "460.00"
     reserve = common["items"][0]["reserve"]
     assert reserve["completed_paychecks"] == 1
@@ -167,6 +169,64 @@ def test_month_end_reserve_and_annual_daily_schedule_are_bounded():
     result = shared_reserve(item, "CAD", [(target, Decimal(100))], SETTINGS, date(2026, 12, 30))
     assert result["reserved_amount"] == "364.00"
     assert result["completed_paychecks"] == 364
+
+
+@pytest.mark.parametrize(
+    "period,expected",
+    [
+        ("daily", "-51.43"),
+        ("weekly", "-360.00"),
+        ("biweekly", "-720.00"),
+        ("monthly", "-1560.00"),
+        ("yearly", "-18720.00"),
+    ],
+)
+def test_personal_contribution_is_reserved_in_full_on_every_pay_schedule(period, expected):
+    data = household()
+    data[0]["period"] = period
+    snapshot = summarize_budgets(data, SETTINGS, date(2026, 8, 1), 0)[0]
+    assert snapshot["reserves"]["amount"] == expected
+    reserve = snapshot["items"][0]["reserve"]
+    assert reserve["reserved_amount"] == expected
+    assert reserve["progress"] == 1
+    assert reserve["completed_paychecks"] == 1
+    assert reserve["remaining_paychecks"] == 0
+    assert "contribution_reserve" not in snapshot["items"][0]
+
+
+def test_common_contribution_and_personal_bills_are_deducted_once_from_available():
+    data = household()
+    data[0].update(account_balance="500.00", credit_balance="20.00")
+    data[0]["items"] = [bill(amount="100", renewal_date="2026-08-02")]
+    data[2]["items"] = [bill(amount="100", recurrence="biweekly")]
+    snapshot = summarize_budgets(data, SETTINGS, date(2026, 8, 1), 0)[0]
+    assert snapshot["reserves"]["amount"] == "-160.00"
+    assert snapshot["available_balance"] == "320.00"
+    assert [item["reserve"]["reserved_amount"] for item in snapshot["items"]] == ["-100.00", "-60.00"]
+    data[2]["items"][0]["active"] = False
+    paused = summarize_budgets(data, SETTINGS, date(2026, 8, 1), 0)[0]
+    assert paused["reserves"]["amount"] == "-100.00"
+    assert paused["available_balance"] == "380.00"
+    assert paused["items"][1]["reserve"] is None
+
+
+def test_one_time_common_reserve_follows_today_and_resets_at_each_person_next_payday():
+    data = household()
+    data[2]["items"] = [bill(amount="100", recurrence="once", renewal_date="2026-08-05")]
+    today = date(2026, 8, 1)
+    current = summarize_budgets(data, SETTINGS, today, 0)
+    for offset in (-10, 1, 10):
+        projected = summarize_budgets(data, SETTINGS, today, offset)
+        for index, expected in ((0, "-60.00"), (1, "-40.00")):
+            assert projected[index]["reserves"]["amount"] == expected
+            assert projected[index]["items"][0]["reserve"] == current[index]["items"][0]["reserve"]
+    before_payday = summarize_budgets(data, SETTINGS, date(2026, 8, 5), 0)
+    assert before_payday[1]["reserves"]["amount"] == "-40.00"
+    after_payday = summarize_budgets(data, SETTINGS, date(2026, 8, 6), 0)
+    assert after_payday[0]["reserves"]["amount"] == "-60.00"
+    assert after_payday[1]["reserves"]["amount"] == "0.00"
+    assert after_payday[1]["items"][0]["reserve"] is None
+    assert summarize_budgets(data, SETTINGS, date(2026, 8, 13), 0)[0]["reserves"]["amount"] == "0.00"
 
 
 @pytest.mark.parametrize("percentage", ["-1", "100.01", "NaN", True, "0.001"])

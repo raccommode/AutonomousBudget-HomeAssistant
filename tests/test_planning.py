@@ -78,10 +78,11 @@ def test_alves_annual_due_day_rolls_to_next_cycle():
 
 def test_alves_month_end_three_installment_reserve():
     result = summary([expense()])
-    assert result["reserves"]["amount"] == "93.33"
+    assert result["reserves"]["amount"] == "-93.33"
     reserve = result["items"][0]["reserve"]
     assert reserve["next_due"] == "2026-02-28"
     assert reserve["completed_paychecks"] == 1
+    assert reserve["reserved_amount"] == "-93.33"
     assert reserve["remaining_paychecks"] == 2
     assert reserve["amount_per_paycheck"] == "93.33"
     assert result["plan"]["expenses"] == "129.23"
@@ -154,8 +155,8 @@ def test_mixed_fx_income_and_expenses_round_per_entry():
 def test_each_budget_payday_override_controls_reserve_independently():
     a = summary([expense()], anchor="2026-01-31")
     b = summary([expense()], anchor="2026-02-01")
-    assert a["reserves"]["amount"] == "93.33"
-    assert b["reserves"]["amount"] == "186.67"
+    assert a["reserves"]["amount"] == "-93.33"
+    assert b["reserves"]["amount"] == "-186.67"
     assert a["plan"] == b["plan"]
 
 
@@ -216,5 +217,5 @@ def test_native_sensor_values_keep_legacy_cashflow_and_add_planning_metrics():
     store = SnapshotStore()
     assert BudgetSensor(store, "home", "expenses").native_value == "280.00"
     assert BudgetSensor(store, "home", "planned_expenses").native_value == "129.23"
-    assert BudgetSensor(store, "home", "reserved").native_value == "93.33"
+    assert BudgetSensor(store, "home", "reserved").native_value == "-93.33"
     assert BudgetSensor(store, "home", "available_balance").native_value == "-63.33"

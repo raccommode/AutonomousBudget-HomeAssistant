@@ -209,6 +209,7 @@ def summarize(
     totals = dict.fromkeys(("income", "expenses", *CATEGORIES), Decimal(0))
     plan = totals.copy()
     reserved = Decimal(0)
+    shared_planned = shared_scheduled = Decimal(0)
     review_count = 0
     review_amount = Decimal(0)
     review_planned = Decimal(0)
@@ -220,9 +221,11 @@ def summarize(
         amount = converted * len(dates)
         planned = planned_amount(item, currency, period, start, end)
         if item.get("shared_source_id"):
-            # This money is contributed on payday. Its reserve belongs to the
-            # common budget, never to both the person and the common account.
-            reserve = None
+            shared_planned += planned
+            shared_scheduled += amount
+            # Always reserve today's contribution, even while browsing another
+            # period. The source calculates it using this person's pay schedule.
+            reserve = item.get("contribution_reserve")
         elif shared_targets:
             from .sharing import shared_reserve
 
@@ -246,11 +249,15 @@ def summarize(
         next_start = max(today, start, date.fromisoformat(item["renewal_date"]))
         upcoming = next_occurrence(item, next_start)
         entries.append(
-            item
+            {key: value for key, value in item.items() if key != "contribution_reserve"}
             | {
                 "period_amount": str(amount),
                 "planned_amount": str(planned),
-                "reserve": reserve,
+                # Keep arithmetic in positive magnitudes; expose reserves as
+                # deductions consistently to the panel, cards, and sensors.
+                "reserve": reserve | {"reserved_amount": str(quantize(-Decimal(reserve["reserved_amount"]), currency))}
+                if reserve
+                else None,
                 "occurrences": len(dates),
                 "next_due": item.get("shared_next_due")
                 if item.get("shared_source_id")
@@ -290,7 +297,11 @@ def summarize(
             "scheduled_amount": str(quantize(review_amount, currency)),
             "planned_amount": str(quantize(review_planned, currency)),
         },
-        "reserves": {"amount": str(quantize(reserved, currency)), "as_of": today.isoformat()},
+        "reserves": {"amount": str(quantize(-reserved, currency)), "as_of": today.isoformat()},
+        "shared_contributions": {
+            "planned_amount": str(quantize(shared_planned, currency)),
+            "scheduled_amount": str(quantize(shared_scheduled, currency)),
+        },
         "available_balance": str(quantize(available, currency)) if available is not None else None,
         "schedule": sorted(due, key=lambda row: (row["date"], row["name"])),
     }

@@ -176,7 +176,7 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
   await panel.getByLabel('First due / renewal date').fill(due);
   await panel.getByRole('button', {name: 'Add entry', exact:true}).last().click();
   await expect(panel.locator('.stat .value').last()).toHaveText('CAD 55.38');
-  await expect(panel.locator('.reserve-total')).toHaveText('CAD 120.00');
+  await expect(panel.locator('.reserve-total')).toHaveText('-CAD 120.00');
   await expect(panel.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '3');
   await expect(panel.locator('.available-summary strong')).toHaveText('-CAD 40.00');
   await panel.getByRole('button', {name: 'Due dates', exact:true}).click();
@@ -188,7 +188,7 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
     {metric: 'investment', state: '0.00'},
     {metric: 'optional', state: '0.00'},
     {metric: 'planned_expenses', state: '55.38'},
-    {metric: 'reserved', state: '120.00'},
+    {metric: 'reserved', state: '-120.00'},
     {metric: 'available_balance', state: '-40.00'},
   ]));
   const entityInfo = await panel.evaluate(async el => {
@@ -196,7 +196,7 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
     const registry = await el.hass.callWS({type:'config/entity_registry/list'});
     return {state, registration: registry.find(entity => entity.entity_id === state.entity_id)};
   });
-  expect(entityInfo.state.state).toBe('120.00');
+  expect(entityInfo.state.state).toBe('-120.00');
   expect(entityInfo.state.attributes.device_class).toBe('monetary');
   expect(entityInfo.state.attributes.unit_of_measurement).toBe('CAD');
   expect(entityInfo.registration.disabled_by).toBeNull();
@@ -224,7 +224,7 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
     editor.id = 'editor-test';
     editor.setConfig({type: 'custom:autonomous-budget-card', budget_id: el.budget.id});
     editor.hass = el.hass;
-    editor.style = 'position:fixed;right:20px;top:80px;padding:20px;width:330px;background:white;z-index:1000';
+    editor.style = 'position:fixed;right:20px;top:80px;padding:20px;width:330px;max-height:80vh;overflow:auto;background:white;z-index:1000';
     document.body.append(editor);
   });
   const editor = page.locator('autonomous-budget-card-editor');
@@ -338,7 +338,10 @@ test('shared budget allocation synchronizes personal expenses, sensors, export, 
     await expect(panel.getByText('Automatic contribution · 60%', {exact:true})).toBeVisible();
     await expect(panel.locator('tbody[data-group="mandatory"]')).toContainText('CAD 720.00');
     await expect(panel.getByRole('button', {name:'Edit Shared household'})).toHaveCount(0);
-    await expect(panel.locator('.reserve-total')).toHaveText('CAD 0.00');
+    await expect(panel.locator('.reserve-total')).toHaveText('-CAD 720.00');
+    await expect(panel.locator('.reserve-entry').filter({hasText:'Shared household'})).toContainText('-CAD 720.00');
+    await expect(panel.getByText('Reserved for this pay period', {exact:true})).toBeVisible();
+    await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'reserved')?.state, alex)).toBe('-720.00');
     await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'planned_expenses')?.state, alex)).toBe('720.00');
     await panel.getByRole('button', {name:'Open shared budget', exact:true}).click();
     await panel.getByRole('button', {name:'Edit Shared rent', exact:true}).click();
@@ -354,6 +357,8 @@ test('shared budget allocation synchronizes personal expenses, sensors, export, 
       document.body.append(card);
     }, alex);
     await expect(page.locator('autonomous-budget-card .value')).toHaveText(/1,440.00/);
+    await expect(page.locator('autonomous-budget-card [data-section="show_shared"]')).toContainText('CAD 1,440.00');
+    await expect(page.locator('autonomous-budget-card .due-row').filter({hasText:'Today'})).toContainText('-CAD 1,440.00');
     await page.locator('autonomous-budget-card').evaluate(card => card.remove());
     const downloadPromise = page.waitForEvent('download');
     await panel.getByRole('button', {name:'Export budgets'}).click();
@@ -395,6 +400,8 @@ test('French shared budget allocation fits mobile and translates automatic contr
       ids.push(id);
       await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), id)).toBe(true);
     }
+    await panel.evaluate(async (p, id) => p.hass.callWS({type:'autonomous_budget/mutate', action:'item_create', payload:{budget_id:id, name:'Loyer partagé', direction:'expense', category:'mandatory', amount:'100', currency:'CAD', recurrence:'biweekly', renewal_date:'2026-09-01'}, revision:p.data.revision}), ids[1]);
+    await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.find(b => b.id === id)?.items.length, ids[1])).toBe(1);
     await panel.locator('.budget-tab').filter({hasText:'Commun mobile'}).click();
     await expect(panel.getByRole('heading', {name:'Budget commun', exact:true})).toBeVisible();
     await panel.getByRole('button', {name:'Gérer la répartition', exact:true}).click();
@@ -407,6 +414,8 @@ test('French shared budget allocation fits mobile and translates automatic contr
     await panel.getByRole('button', {name:'Enregistrer', exact:true}).click();
     await panel.locator('.share-row').getByRole('button', {name:'Camille', exact:true}).click();
     await expect(panel.getByText('Contribution automatique · 100%', {exact:true})).toBeVisible();
+    await expect(panel.locator('.reserve-total')).toHaveText('-100,00 CAD');
+    await expect(panel.getByText('Réservé pour cette période de paie', {exact:true})).toBeVisible();
     await panel.getByRole('button', {name:'Ouvrir le budget commun', exact:true}).click();
     await expect(panel.getByRole('heading', {name:'Commun mobile', exact:true})).toBeVisible();
     expect(await panel.evaluate(p => p.shadowRoot.querySelector('.shell').scrollWidth <= p.clientWidth)).toBe(true);
@@ -419,3 +428,62 @@ test('French shared budget allocation fits mobile and translates automatic contr
     }
   }
 });
+
+for (const language of ['English', 'French']) {
+  test(`${language} card blocks can each be shown alone, hidden, and restored from saved configuration`, async ({ page }) => {
+    const panel = page.locator('autonomous-budget-panel');
+    const id = await panel.evaluate(async p => (await p.hass.callWS({type:'autonomous_budget/mutate', action:'budget_create', payload:{name:'Card options test', currency:'CAD', account_balance:'1000'}, revision:p.data.revision})).id);
+    await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), id)).toBe(true);
+    try {
+      await panel.evaluate(async (p, id) => {
+        await customElements.whenDefined('autonomous-budget-card');
+        await customElements.whenDefined('autonomous-budget-card-editor');
+        const host = document.createElement('div');
+        host.id = 'config-test-host';
+        host.style = 'position:fixed;right:10px;top:10px;display:flex;gap:10px;z-index:2000;background:white;padding:12px';
+        const card = document.createElement('autonomous-budget-card');
+        card.style = 'width:380px;max-height:90vh;overflow:auto';
+        const editor = document.createElement('autonomous-budget-card-editor');
+        editor.style = 'width:330px;max-height:90vh;overflow:auto';
+        const config = {type:'custom:autonomous-budget-card', budget_id:id, title:'My card'};
+        card.setConfig(config); editor.setConfig(config);
+        card.hass = editor.hass = p.hass;
+        editor.addEventListener('config-changed', event => { host.saved = structuredClone(event.detail.config); card.setConfig(event.detail.config); });
+        host.append(card, editor); document.body.append(host);
+      }, id);
+      const card = page.locator('autonomous-budget-card');
+      const editor = page.locator('autonomous-budget-card-editor');
+      await expect(card.getByRole('heading', {name:'My card'})).toBeVisible();
+      await expect(card.locator('[data-section]')).toHaveCount(14);
+      const keys = await editor.locator('input[type=checkbox]').evaluateAll(inputs => inputs.map(input => input.name));
+      expect(keys).toHaveLength(14);
+      expect(await editor.locator('input[type=checkbox]').evaluateAll((inputs, prefix) => inputs.every(input => input.parentElement.textContent.trim().startsWith(prefix)), language === 'French' ? 'Afficher' : 'Show')).toBe(true);
+      for (const key of keys) await editor.locator(`input[name="${key}"]`).uncheck();
+      await expect(card.locator('[data-section]')).toHaveCount(0);
+      await expect(card.locator('ha-card')).toHaveText('');
+      await card.evaluate(card => card.setConfig(JSON.parse(JSON.stringify(document.querySelector('#config-test-host').saved))));
+      await expect(card.locator('[data-section]')).toHaveCount(0);
+      for (const key of keys) {
+        await editor.locator(`input[name="${key}"]`).check();
+        await expect(card.locator('[data-section]')).toHaveCount(1);
+        await expect(card.locator(`[data-section="${key}"]`)).toBeVisible();
+        await editor.locator(`input[name="${key}"]`).uncheck();
+      }
+      for (const key of keys) await editor.locator(`input[name="${key}"]`).check();
+      await expect(card.locator('[data-section]')).toHaveCount(14);
+      await editor.locator('select[name="view"]').selectOption('cashflow');
+      await expect(card.locator('[data-section="show_income"]')).toContainText(language === 'French' ? 'Revenus prévus' : 'Expected income');
+      await expect(card.locator('[data-section="show_shared"]')).toContainText(language === 'French' ? 'Montant du commun' : 'Common budget amount');
+      const saved = await page.locator('#config-test-host').evaluate(host => host.saved);
+      expect(saved).toMatchObject({budget_id:id, title:'My card', view:'cashflow'});
+      expect(keys.every(key => saved[key] === true)).toBe(true);
+      // Old YAML that hid reserves must not unexpectedly reveal its child blocks.
+      await card.evaluate((card, id) => card.setConfig({type:'custom:autonomous-budget-card', budget_id:id, show_reserves:false}), id);
+      for (const key of ['show_reserves', 'show_available_balance', 'show_reserve_note']) await expect(card.locator(`[data-section="${key}"]`)).toHaveCount(0);
+    } finally {
+      await page.locator('#config-test-host').evaluate(host => host.remove()).catch(() => {});
+      await panel.evaluate(async (p, id) => p.hass.callWS({type:'autonomous_budget/mutate', action:'budget_delete', payload:{budget_id:id}, revision:p.data.revision}), id);
+      await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), id)).toBe(false);
+    }
+  });
+}

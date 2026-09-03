@@ -21,6 +21,7 @@ Create budgets, spread recurring commitments across paydays, and see what's left
 ## A clear home for your finances
 
 - **Multiple budgets.** Give each budget a name and currency: everyday life, a project, or a future plan.
+- **Shared budgets.** Split common expenses by percentage between personal budgets. Each person gets an automatic mandatory contribution on their own pay schedule, kept in sync with the shared budget.
 - **Your own rhythm.** Daily, weekly, every two weeks, monthly, or yearly. Each budget can optionally set its own pay period and payday. Leave them empty to use the global defaults; two weeks is the initial default.
 - **Grouped entries.** Income appears first, followed by expenses grouped as Investment, Mandatory, and Optional. Each group shows its total for the selected calculation view; older expenses awaiting classification stay in a separate group.
 - **Income and expenses.** Every entry has a money-flow direction. Income has no category. Each expense has one of three categories: **Investment**, **Mandatory**, or **Optional**.
@@ -79,6 +80,28 @@ Restart Home Assistant, then add the integration from **Settings → Devices & s
 In **Due dates**, an August 28 payday starts a period running **August 28 through September 10**, inclusive. A Netflix renewal on September 3 is counted in that period; one on September 11 belongs to the next period.
 
 The three category totals describe **expenses only**. Income is uncategorized. Savings contributions entered as expenses reduce the amount left to spend.
+
+## Share a common budget
+
+1. Create a **Personal budget** for each person, using their name (for example **Alex** and **Sam**). Optionally set their own pay period and payday.
+2. Create another budget with **Budget type → Shared budget**, named **Shared household**, for example.
+3. Add the common expenses with their original amounts, categories, and renewal dates.
+4. Open **Manage allocation** and assign a percentage to each personal budget. The linked budgets must use the same currency. Individual common expenses can still use another currency with a manual exchange rate.
+5. Each personal budget now contains a read-only **Automatic contribution** under **Mandatory**. Its arrow opens the shared budget where you manage expenses and percentages.
+
+![Shared household budget with contributions on different pay schedules](docs/screenshot-shared.png)
+
+For a **CAD 2,600 monthly** common expense, Alex's **60%** share is **CAD 720 every two weeks**; Sam's **40%** share is **CAD 1,040 monthly**. Each contribution uses that person's optional pay schedule, falling back to the global defaults. A person can contribute to several shared budgets.
+
+Contributions share **all expense categories** and do not deduct the common budget's income. The original expense categories remain in the common budget; the aggregate contribution is a mandatory expense in each personal budget. No duplicate income is automatically created in the common budget, and no bank transfer is initiated.
+
+Amounts update when expenses, percentages, exchange rates, names, or pay schedules change. Paused and ended commitments are excluded using the same rules as the regular plan. One-time expenses are shared once, in each person's period containing the bill's due date; their share is included in the contribution scheduled at the **start of that period**. Due dates therefore shows the person's planned contribution date, while the original bill stays on its actual due date in the common budget. Historical and future views remain projections of the current definitions.
+
+Percentages support two decimal places and may total up to **100%**. A partial allocation shows the unallocated percentage. Set a person's share to zero to unlink it. Deleting a personal budget removes its allocation without increasing anyone else's percentage; deleting the common budget removes its automatic contributions. Allocations cannot link to another common budget. For the same period and expense total, rounding remainders are distributed deterministically so a full allocation does not create or lose a cent. Different pay frequencies can produce small annual rounding differences.
+
+With participants configured, **common reserves** advance on each participant's own paydays strictly between the previous and next bill dates, following the ALVES model. Installments through today count as projected savings; the bill's due date starts the next reserve cycle. The common budget holds this reserve, so automatic personal contributions do **not** create a second reserve. An unallocated common budget uses its own pay schedule for the usual reserve estimate. These are theoretical savings, not recorded transfers; update manual account balances to reflect actual contributions.
+
+Shared and personal budgets both work with the existing dashboard card and eleven sensors. Exports keep allocation definitions and omit automatic contribution rows, which are regenerated from the common budget.
 
 ### How periods and recurring entries work
 
@@ -210,7 +233,7 @@ The integration supports **English** and **French**. It automatically follows th
 
 ## Data and access
 
-Budgets are shared across the Home Assistant household. **All authenticated Home Assistant users can view and export budgets; only administrators can create, edit, or delete them.** Dashboard visibility is not a separate financial-data permission boundary. Budget-specific sharing is not implemented.
+Budgets are shared across the Home Assistant household. **All authenticated Home Assistant users can view and export budgets; only administrators can create, edit, or delete them.** Dashboard visibility is not a separate financial-data permission boundary. Common-budget allocation shares amounts between budgets; it does not restrict access by person or link budgets to Home Assistant user accounts.
 
 Data is stored in `.storage/autonomous_budget` within the Home Assistant configuration directory and is included with normal Home Assistant configuration backups. Saves are serialized and durable before changes are shown; stale edits from another session are rejected rather than overwriting newer data.
 
@@ -218,7 +241,7 @@ Removing the integration keeps its stored budgets so reinstalling can restore th
 
 ## Updating from an earlier version
 
-Download **0.2.2** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+Download **0.3.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
 
 This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
 

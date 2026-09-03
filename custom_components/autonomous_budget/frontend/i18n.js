@@ -1,5 +1,34 @@
 /** English source strings and French UI translations. User content is excluded. */
 const fr = {
+  "Budget type": "Type de budget",
+  "Personal budget": "Budget personnel",
+  "Shared budget": "Budget commun",
+  "Shared": "Commun",
+  "Shared budget allocation": "Répartition du budget commun",
+  "Manage allocation": "Gérer la répartition",
+  "Automatic contributions to personal budgets": "Contributions automatiques aux budgets personnels",
+  "Choose the personal budgets and percentages to share these expenses.": "Choisissez les budgets personnels et les pourcentages pour répartir ces dépenses.",
+  "Next contribution": "Prochaine contribution",
+  "Each share covers this budget’s expenses. Income is not deducted. Contributions are added as mandatory expenses on each person’s payday.": "Chaque part couvre les dépenses de ce budget. Les revenus ne sont pas déduits. Les contributions sont ajoutées comme dépenses obligatoires à la date de paie de chaque personne.",
+  "Automatic contribution": "Contribution automatique",
+  "Open shared budget": "Ouvrir le budget commun",
+  "Based on participants’ paydays": "Selon les dates de paie des participants",
+  "Create a personal budget for each person first, using the same currency as the shared budget. Each person’s optional pay schedule determines their contribution dates.": "Créez d’abord un budget personnel par personne, dans la même devise que le budget commun. Le calendrier de paie facultatif de chacun détermine ses dates de contribution.",
+  "Share (%)": "Part (%)",
+  "Set a share to 0 to remove the contribution. Unallocated amounts remain in the shared budget.": "Mettez une part à 0 pour supprimer la contribution. Les montants non répartis restent dans le budget commun.",
+  "The total allocation cannot exceed 100%.": "La répartition totale ne peut pas dépasser 100 %.",
+  "Linked contributions will be removed. Other people’s percentages will not be increased.": "Les contributions liées seront supprimées. Les pourcentages des autres personnes ne seront pas augmentés.",
+  "Choose up to 50 personal budgets for the allocation.": "Choisissez jusqu’à 50 budgets personnels pour la répartition.",
+  "Choose a personal budget and its percentage.": "Choisissez un budget personnel et son pourcentage.",
+  "Percentages allow at most 2 decimal places.": "Les pourcentages acceptent au maximum 2 décimales.",
+  "Only shared budgets can have an allocation.": "Seuls les budgets communs peuvent avoir une répartition.",
+  "Contributions must go to an existing personal budget.": "Les contributions doivent être ajoutées à un budget personnel existant.",
+  "Each personal budget can appear only once in an allocation.": "Chaque budget personnel ne peut apparaître qu’une fois dans une répartition.",
+  "Shared and personal budgets must use the same currency.": "Les budgets communs et personnels doivent utiliser la même devise.",
+  "Automatic contributions are managed in the shared budget.": "Les contributions automatiques se gèrent dans le budget commun.",
+  "Percentage must be between 0 and 100.": "Le pourcentage doit être compris entre 0 et 100.",
+  "Budget ID must contain 1–100 characters.": "L’identifiant du budget doit contenir entre 1 et 100 caractères.",
+
   "Home Assistant entity": "Entité Home Assistant", "Reserve entity": "Entité de réserve", "Entity ID": "Identifiant de l’entité", "Add to a dashboard": "Ajouter à un tableau de bord", "Open entity": "Ouvrir l’entité",
   "This sensor tracks the total projected reserve for this budget, in its currency. It updates after edits and at local midnight.": "Ce capteur suit la réserve prévisionnelle totale de ce budget, dans sa devise. Il est actualisé après les modifications et à minuit, heure locale.",
   "The reserve entity is unavailable. In Settings → Devices & services → Autonomous Budget, open this budget and enable its Projected reserve sensor if disabled. Restart Home Assistant after updating the integration.": "L’entité de réserve est indisponible. Dans Paramètres → Appareils et services → Autonomous Budget, ouvrez ce budget et activez son capteur Réserve prévisionnelle s’il est désactivé. Redémarrez Home Assistant après la mise à jour de l’intégration.",
@@ -93,6 +122,8 @@ export function translate(source, language) {
   if (result === undefined && text.includes(" · ")) result = text.split(" · ").map((part) => translate(part, language)).join(" · ");
   if (result === undefined) {
     const patterns = [
+      [/^([\d.]+)% unallocated$/, (_, amount) => `${amount} % non réparti`],
+      [/^([\d.]+)% allocated$/, (_, amount) => `${amount} % réparti`],
       [/^(\d+) expenses need a category\. Edit each expense to choose one\.$/, (_, count) => `${count} dépenses sont à catégoriser. Modifiez chaque dépense pour choisir sa catégorie.`],
       [/^(\d+)\/(\d+) pay periods$/, (_, count, total) => `${count}/${total} périodes de paie`],
       [/^(\d+) remaining$/, (_, count) => `${count} restante${count === "1" ? "" : "s"}`],

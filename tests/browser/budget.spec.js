@@ -294,3 +294,128 @@ test('income saves without category and changing direction requires an expense c
   await panel.getByRole('button', {name:'Delete budget', exact:true}).click();
   await expect(panel.getByRole('button', {name:'Category correction test CAD'})).toHaveCount(0);
 });
+
+test('shared budget allocation synchronizes personal expenses, sensors, export, and removal', async ({ page }) => {
+  const panel = page.locator('autonomous-budget-panel');
+  const created = [];
+  async function create(name, kind = 'personal', period = 'biweekly', anchor = '2026-08-28') {
+    await panel.getByRole('button', {name:'New budget', exact:true}).click();
+    await panel.getByLabel('Budget name', {exact:true}).fill(name);
+    await panel.getByLabel('Budget type').selectOption(kind);
+    await panel.getByLabel('Pay period (optional)').selectOption(period);
+    await panel.getByLabel('Payday / reference date (optional)').fill(anchor);
+    await panel.getByRole('button', {name:'Create budget', exact:true}).click();
+    await expect(panel.getByRole('heading', {name, exact:true})).toBeVisible();
+    const id = await panel.evaluate(p => p.budget.id);
+    created.push(id);
+    return id;
+  }
+  try {
+    const alex = await create('Alex');
+    const sam = await create('Sam', 'personal', 'monthly', '2026-09-01');
+    const common = await create('Shared household', 'shared');
+    await expect(panel.getByText('100% unallocated', {exact:true})).toBeVisible();
+    await panel.getByRole('button', {name:'Add entry', exact:true}).click();
+    await panel.getByLabel('Entry name').fill('Shared rent');
+    await panel.getByLabel('Expense category').selectOption('mandatory');
+    await panel.getByLabel('Amount', {exact:true}).fill('2600');
+    await panel.getByLabel('First due / renewal date').fill('2026-09-01');
+    await panel.getByRole('button', {name:'Add entry', exact:true}).last().click();
+    await panel.getByRole('button', {name:'Manage allocation', exact:true}).click();
+    const alexRow = panel.locator('.allocation-row').filter({hasText:'Alex'});
+    const samRow = panel.locator('.allocation-row').filter({hasText:'Sam'});
+    await alexRow.getByLabel('Share (%)').fill('60');
+    await samRow.getByLabel('Share (%)').fill('50');
+    expect(await panel.locator('dialog form').evaluate(form => form.checkValidity())).toBe(false);
+    await samRow.getByLabel('Share (%)').fill('40');
+    await expect(panel.locator('.allocation-total')).toHaveText('100% allocated · 0% unallocated');
+    await panel.getByRole('button', {name:'Save changes', exact:true}).click();
+    await expect(panel.locator('.share-row').filter({hasText:'Alex'})).toContainText('CAD 720.00');
+    await expect(panel.locator('.share-row').filter({hasText:'Sam'})).toContainText('CAD 1,040.00');
+    await expect(panel.locator('.toast')).toHaveCount(0);
+    await page.screenshot({path:'docs/screenshot-shared.png', fullPage:true});
+    await panel.locator('.share-row').getByRole('button', {name:'Alex', exact:true}).click();
+    await expect(panel.getByText('Automatic contribution · 60%', {exact:true})).toBeVisible();
+    await expect(panel.locator('tbody[data-group="mandatory"]')).toContainText('CAD 720.00');
+    await expect(panel.getByRole('button', {name:'Edit Shared household'})).toHaveCount(0);
+    await expect(panel.locator('.reserve-total')).toHaveText('CAD 0.00');
+    await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'planned_expenses')?.state, alex)).toBe('720.00');
+    await panel.getByRole('button', {name:'Open shared budget', exact:true}).click();
+    await panel.getByRole('button', {name:'Edit Shared rent', exact:true}).click();
+    await panel.getByLabel('Amount', {exact:true}).fill('5200');
+    await panel.getByRole('button', {name:'Save changes', exact:true}).click();
+    await expect(panel.locator('.share-row').filter({hasText:'Alex'})).toContainText('CAD 1,440.00');
+    await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'planned_expenses')?.state, sam)).toBe('2080.00');
+    // Native cards use the same live contribution totals.
+    await panel.evaluate(async (p, id) => {
+      await customElements.whenDefined('autonomous-budget-card');
+      const card = document.createElement('autonomous-budget-card');
+      card.setConfig({type:'custom:autonomous-budget-card', budget_id:id}); card.hass = p.hass;
+      document.body.append(card);
+    }, alex);
+    await expect(page.locator('autonomous-budget-card .value')).toHaveText(/1,440.00/);
+    await page.locator('autonomous-budget-card').evaluate(card => card.remove());
+    const downloadPromise = page.waitForEvent('download');
+    await panel.getByRole('button', {name:'Export budgets'}).click();
+    const download = await downloadPromise;
+    const exported = JSON.parse(fs.readFileSync(await download.path(), 'utf8'));
+    expect(exported.budgets.find(b => b.id === common).allocations).toEqual([{budget_id:alex, percentage:'60'}, {budget_id:sam, percentage:'40'}]);
+    expect(exported.budgets.find(b => b.id === alex).items).toEqual([]);
+    await page.reload();
+    await panel.locator('.budget-tab').filter({hasText:'Shared household'}).click();
+    await expect(panel.locator('.share-row').filter({hasText:'Alex'})).toContainText('CAD 1,440.00');
+    await panel.getByRole('button', {name:'Manage allocation', exact:true}).click();
+    await panel.locator('.allocation-row').filter({hasText:'Sam'}).getByLabel('Share (%)').fill('0');
+    await panel.getByRole('button', {name:'Save changes', exact:true}).click();
+    await expect(panel.getByText('40% unallocated', {exact:true})).toBeVisible();
+    await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'planned_expenses')?.state, sam)).toBe('0.00');
+    await panel.getByRole('button', {name:'Edit budget', exact:true}).click();
+    await panel.getByRole('button', {name:'Delete budget', exact:true}).click();
+    await panel.getByRole('button', {name:'Delete budget', exact:true}).click();
+    await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), common)).toBe(false);
+    await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'planned_expenses')?.state, alex)).toBe('0.00');
+  } finally {
+    for (const id of created.reverse()) {
+      await panel.evaluate(async (p, id) => {
+        if (p.data.budgets.some(b => b.id === id)) await p.hass.callWS({type:'autonomous_budget/mutate', action:'budget_delete', payload:{budget_id:id}, revision:p.data.revision});
+      }, id);
+      await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), id)).toBe(false);
+    }
+  }
+});
+
+test('French shared budget allocation fits mobile and translates automatic contributions', async ({ page }) => {
+  await page.setViewportSize({width:390, height:844});
+  const panel = page.locator('autonomous-budget-panel');
+  const ids = [];
+  try {
+    // Seed disposable personal and common budgets through the authenticated API.
+    for (const payload of [{name:'Camille', currency:'CAD'}, {name:'Commun mobile', currency:'CAD', kind:'shared'}]) {
+      const id = await panel.evaluate(async (p, payload) => (await p.hass.callWS({type:'autonomous_budget/mutate', action:'budget_create', payload, revision:p.data.revision})).id, payload);
+      ids.push(id);
+      await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), id)).toBe(true);
+    }
+    await panel.locator('.budget-tab').filter({hasText:'Commun mobile'}).click();
+    await expect(panel.getByRole('heading', {name:'Budget commun', exact:true})).toBeVisible();
+    await panel.getByRole('button', {name:'Gérer la répartition', exact:true}).click();
+    await panel.locator('.allocation-row').filter({hasText:'Camille'}).getByLabel('Part (%)').fill('100');
+    await expect(panel.locator('.allocation-total')).toHaveText('100 % réparti · 0 % non réparti');
+    await expect(panel.locator('dialog')).toBeVisible();
+    const bounds = await panel.locator('dialog').boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+    await panel.getByRole('button', {name:'Enregistrer', exact:true}).click();
+    await panel.locator('.share-row').getByRole('button', {name:'Camille', exact:true}).click();
+    await expect(panel.getByText('Contribution automatique · 100%', {exact:true})).toBeVisible();
+    await panel.getByRole('button', {name:'Ouvrir le budget commun', exact:true}).click();
+    await expect(panel.getByRole('heading', {name:'Commun mobile', exact:true})).toBeVisible();
+    expect(await panel.evaluate(p => p.shadowRoot.querySelector('.shell').scrollWidth <= p.clientWidth)).toBe(true);
+  } finally {
+    for (const id of ids.reverse()) {
+      await panel.evaluate(async (p, id) => {
+        if (p.data.budgets.some(b => b.id === id)) await p.hass.callWS({type:'autonomous_budget/mutate', action:'budget_delete', payload:{budget_id:id}, revision:p.data.revision});
+      }, id);
+      await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), id)).toBe(false);
+    }
+  }
+});

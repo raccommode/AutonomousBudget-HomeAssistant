@@ -67,9 +67,25 @@ def validate_settings(data: dict) -> dict:
 def validate_budget(data: dict) -> dict:
     """Normalize metadata and optional per-budget pay schedule overrides."""
     currency = choice(data.get("currency"), CURRENCIES, "currency")
+    kind = choice(data.get("kind", "personal"), ("personal", "shared"), "budget type")
+    allocations = data.get("allocations", [])
+    if not isinstance(allocations, list) or len(allocations) > 50:
+        raise ValidationError("Choose up to 50 personal budgets for the allocation.")
+    normalized = []
+    for allocation in allocations:
+        if not isinstance(allocation, dict):
+            raise ValidationError("Choose a personal budget and its percentage.")
+        percentage = decimal(allocation.get("percentage"), "Percentage", "100")
+        if percentage != percentage.quantize(Decimal("0.01")):
+            raise ValidationError("Percentages allow at most 2 decimal places.")
+        normalized.append({"budget_id": text(allocation.get("budget_id"), "Budget ID"), "percentage": str(percentage)})
+    if kind == "personal" and normalized:
+        raise ValidationError("Only shared budgets can have an allocation.")
     return {
         "name": text(data.get("name"), "Budget name"),
         "currency": currency,
+        "kind": kind,
+        "allocations": normalized,
         "period": choice(data["period"], PERIODS, "pay period") if data.get("period") else None,
         "anchor": parse_date(data["anchor"]).isoformat() if data.get("anchor") else None,
         "account_balance": optional_balance(data.get("account_balance"), currency),
@@ -180,7 +196,9 @@ def occurrences(item: dict, start: date, end: date) -> list[date]:
     return dates
 
 
-def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dict:
+def summarize(
+    budget: dict, settings: dict, today: date, offset: int = 0, *, shared_targets: list | None = None
+) -> dict:
     """Summarize scheduled cash flow; this is not a bank account balance."""
     from .planning import next_occurrence, planned_amount, reserve_accrual
 
@@ -201,7 +219,16 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
         converted = quantize(Decimal(item["amount"]) * Decimal(item["exchange_rate"]), currency)
         amount = converted * len(dates)
         planned = planned_amount(item, currency, period, start, end)
-        reserve = reserve_accrual(item, currency, period, date.fromisoformat(anchor), today)
+        if item.get("shared_source_id"):
+            # This money is contributed on payday. Its reserve belongs to the
+            # common budget, never to both the person and the common account.
+            reserve = None
+        elif shared_targets:
+            from .sharing import shared_reserve
+
+            reserve = shared_reserve(item, currency, shared_targets, settings, today)
+        else:
+            reserve = reserve_accrual(item, currency, period, date.fromisoformat(anchor), today)
         reserved += Decimal(reserve["reserved_amount"]) if reserve else Decimal(0)
         totals["income" if item["direction"] == "income" else "expenses"] += amount
         plan["income" if item["direction"] == "income" else "expenses"] += planned
@@ -225,7 +252,11 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
                 "planned_amount": str(planned),
                 "reserve": reserve,
                 "occurrences": len(dates),
-                "next_due": upcoming.isoformat() if upcoming else None,
+                "next_due": item.get("shared_next_due")
+                if item.get("shared_source_id")
+                else upcoming.isoformat()
+                if upcoming
+                else None,
             }
         )
         due.extend(

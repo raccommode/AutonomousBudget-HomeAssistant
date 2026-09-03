@@ -70,3 +70,9 @@ A numeric-state trigger fires when the value crosses the threshold; it does not 
 ## Sensor history
 
 The sensors use Home Assistant's monetary device class. They deliberately do not expose a long-term statistics state class: totals are recomputed period projections, not cumulative or measured transactions. Home Assistant Recorder can still keep normal entity history, subject to your own Recorder configuration.
+
+## Common budgets and personal contributions
+
+Choose a common budget in the same card editor to see its expense plan and projected reserve. Choose a personal budget to include its automatic mandatory contributions alongside its own expenses. Updates to the common budget or its allocation reach both cards and native sensors automatically.
+
+Each sensor exposes a `budget_type` attribute (`personal` or `shared`) in addition to `budget_id` and `metric`. Existing entity IDs remain stable. Common reserves use participants' paydays when an allocation is configured; personal contribution rows carry no duplicate reserve. Do not sum common expense sensors with the linked personal contribution sensors to calculate a household expense total: they describe the same commitments from two perspectives.

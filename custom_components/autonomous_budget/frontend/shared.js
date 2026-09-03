@@ -1,11 +1,11 @@
-import { localize, translate } from "./i18n.js?v=0.2.2";
+import { localize, translate } from "./i18n.js?v=0.3.0";
 /** Local-only shared UI primitives. No remote fonts, scripts, or trackers. */
 export const labels = {
   "": "Use default",
   daily: "Daily", weekly: "Weekly", biweekly: "Every two weeks", monthly: "Monthly",
   quarterly: "Quarterly", yearly: "Yearly", once: "One time",
   investment: "Investment", mandatory: "Mandatory", optional: "Optional",
-  income: "Income", expense: "Expense",
+  income: "Income", expense: "Expense", personal: "Personal budget", shared: "Shared budget",
 };
 export const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 export const money = (value, currency, language = "en") => new Intl.NumberFormat(language, { style: "currency", currency, currencyDisplay: "code" }).format(Number(value));

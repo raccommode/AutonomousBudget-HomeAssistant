@@ -115,6 +115,7 @@ class BudgetSensor(SensorEntity):
             return {}
         return {
             "budget_id": self.budget_id,
+            "budget_type": self._snapshot.get("kind", "personal"),
             "metric": self.metric,
             "period_start": self._snapshot["period_start"],
             "period_end": self._snapshot["period_end"],

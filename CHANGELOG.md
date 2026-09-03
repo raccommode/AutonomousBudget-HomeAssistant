@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-09-03
+
+- Add personal and shared budget types with percentage allocations inspired by ALVES.
+- Automatically add one locked mandatory contribution per common budget to each participant's personal budget, using their own optional pay period and payday.
+- Keep contributions synchronized with common expenses, pauses, end dates, one-time expenses, manual exchange rates, allocation changes, and deletions.
+- Calculate common reserves from participants' paydays without adding a duplicate reserve to personal budgets.
+- Support partial allocations, deterministic currency rounding, several common budgets per person, and validation against duplicate links, cycles, incompatible currencies, or totals above 100%.
+- Include common budgets and personal contributions in existing native sensors and dashboard cards. Export only source entries and allocation definitions.
+- Add English/French allocation screens, mobile coverage, durable storage tests, and real Home Assistant sensor verification. Existing budgets remain personal with no allocation by default.
+
 ## 0.2.2 — 2026-09-03
 
 - Simplify period navigation to the previous and next arrow buttons, removing the Today button.

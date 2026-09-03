@@ -39,7 +39,7 @@ npm run test:e2e
 
 The instance listens only on `127.0.0.1:8128`. The setup script onboards a disposable household, installs the integration through its real config flow, and seeds fictional budgets. It confirms the development HTTP settings after connecting successfully. It saves test credentials and tokens only under the ignored `.dev-ha` directory. Never reuse this script against a personal Home Assistant installation.
 
-Browser tests authenticate using those local tokens. They exercise the real panel, websocket API, card registration, settings, recurring entries, currency conversion, pausing, persistence, and deletion. Screenshots are written to `docs/screenshot-*.png`; only intentionally reviewed screenshots belong in a commit.
+Browser tests authenticate using those local tokens. They exercise the real panel, websocket API, card registration, settings, recurring entries, currency conversion, pausing, persistence, deletion, common-budget allocation, individual pay schedules, live sensor synchronization, and exports without duplicate contributions. Screenshots are written to `docs/screenshot-*.png`; only intentionally reviewed screenshots belong in a commit.
 
 The test instance may install Home Assistant's standard onboarding integrations. These are part of the disposable development household, not dependencies of Autonomous Budget.
 

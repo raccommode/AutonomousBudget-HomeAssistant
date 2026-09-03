@@ -10,7 +10,8 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import CURRENCIES, DOMAIN, SIGNAL_CHANGED, STORAGE_VERSION
-from .model import ValidationError, summarize, validate_budget, validate_item, validate_settings
+from .model import ValidationError, validate_budget, validate_item, validate_settings
+from .sharing import summarize_budgets, validate_links
 
 
 class BudgetStore:
@@ -53,7 +54,7 @@ class BudgetStore:
             "settings": deepcopy(self.data["settings"]),
             "currencies": CURRENCIES,
             "today": today.isoformat(),
-            "budgets": [summarize(budget, self.data["settings"], today, offset) for budget in self.data["budgets"]],
+            "budgets": summarize_budgets(self.data["budgets"], self.data["settings"], today, offset),
         }
 
         return self._cache_value
@@ -65,6 +66,7 @@ class BudgetStore:
                 raise ValidationError("Budgets changed in another session. Close this dialog and try again.")
             candidate = deepcopy(self.data)
             result = self._apply(candidate, action, payload)
+            validate_links(candidate["budgets"])
             candidate["revision"] += 1
             await self.storage.async_save(candidate)
             self.data = candidate
@@ -86,6 +88,9 @@ class BudgetStore:
             raise ValidationError("Budget no longer exists.")
         if action == "budget_delete":
             data["budgets"].remove(budget)
+            for source in data["budgets"]:
+                if source.get("allocations"):
+                    source["allocations"] = [row for row in source["allocations"] if row["budget_id"] != budget["id"]]
             return {}
         if action == "budget_update":
             update = validate_budget(budget | payload)
@@ -99,6 +104,8 @@ class BudgetStore:
             item = validate_item(payload, budget["currency"]) | {"id": uuid4().hex}
             budget["items"].append(item)
             return {"id": item["id"]}
+        if isinstance(payload.get("item_id"), str) and payload["item_id"].startswith("shared:"):
+            raise ValidationError("Automatic contributions are managed in the shared budget.")
         item = next((item for item in budget["items"] if item["id"] == payload.get("item_id")), None)
         if item is None:
             raise ValidationError("Entry no longer exists.")

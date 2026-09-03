@@ -22,7 +22,7 @@ Create budgets, spread recurring commitments across paydays, and see what's left
 
 - **Multiple budgets.** Give each budget a name and currency: everyday life, a project, or a future plan.
 - **Your own rhythm.** Daily, weekly, every two weeks, monthly, or yearly. Each budget can optionally set its own pay period and payday. Leave them empty to use the global defaults; two weeks is the initial default.
-- **Income and expenses.** Every entry has a money-flow direction. Income has one of three categories: **Investment**, **Mandatory**, or **Optional**. Expenses have no category.
+- **Income and expenses.** Every entry has a money-flow direction. Income has no category. Each expense has one of three categories: **Investment**, **Mandatory**, or **Optional**.
 - **Recurring commitments.** Add Netflix, rent, a paycheck, or a savings contribution with its amount, currency, renewal date, and frequency. One-time entries, end dates, and pausing are supported too.
 - **A plan for each payday.** Compare income and expenses on the same time scale, then switch to **Due dates** to see actual scheduled cash flow. Browse previous and upcoming periods.
 - **Progressive reserves.** See the projected amount set aside for each recurring expense, its next renewal, and completed / remaining pay periods.
@@ -70,14 +70,14 @@ Restart Home Assistant, then add the integration from **Settings → Devices & s
 
 1. Create a budget named **Everyday life**, with your preferred currency.
 2. Optionally select **Every two weeks** as this budget’s pay period and enter a payday as its reference date. You may leave either field empty to inherit its global default.
-3. Add your paycheck: **Income**, your chosen category, amount, **Every two weeks**, and a payday as its first due date.
-4. Add rent, Netflix, and savings contributions as expenses. Expenses do not ask for a category.
+3. Add your paycheck: **Income**, amount, **Every two weeks**, and a payday as its first due date.
+4. Add rent, Netflix, and savings contributions as expenses. Choose **Mandatory**, **Optional**, or **Investment** for each expense.
 5. Set the amount and actual renewal date for each entry. **Per pay period** shows the regular budget; **Due dates** shows scheduled payments.
 6. Review **Projected reserves** below your entries. Optionally enter an account balance and credit owed in **Edit budget** to see **Available after reserves**.
 
 In **Due dates**, an August 28 payday starts a period running **August 28 through September 10**, inclusive. A Netflix renewal on September 3 is counted in that period; one on September 11 belongs to the next period.
 
-The three category totals describe **income only**. Expenses have no category and contribute to total planned expenses. Savings contributions entered as expenses reduce the amount left to spend.
+The three category totals describe **expenses only**. Income is uncategorized. Savings contributions entered as expenses reduce the amount left to spend.
 
 ### How periods and recurring entries work
 
@@ -110,7 +110,7 @@ The default **Per pay period** view normalizes recurring income and expenses usi
 
 The planning convention uses 364 daily periods, 52 weeks, 26 two-week periods, 12 months, 4 quarters, or 1 year. Calendar scheduling still uses real dates, including leap years and years with 27 paydays. For other pay periods, the same frequency ratios apply. Converted amounts are rounded per entry before totals are added.
 
-Active recurring commitments enter the regular plan even before their first renewal, so you can prepare for future bills. They leave the plan once no occurrence remains on or after the selected period's start. **One-time entries** contribute their full amount only in the period when due. Paused entries contribute nothing. Income categories use the selected view's calculation; expenses remain uncategorized.
+Active recurring commitments enter the regular plan even before their first renewal, so you can prepare for future bills. They leave the plan once no occurrence remains on or after the selected period's start. **One-time entries** contribute their full amount only in the period when due. Paused entries contribute nothing. Expense categories use the selected view's calculation; income remains uncategorized.
 
 ### Projected reserves and available money
 
@@ -145,7 +145,7 @@ The integration registers its card automatically, including on YAML dashboards. 
 
 1. Edit a dashboard and choose **Add card**.
 2. Search for **Autonomous Budget**.
-3. Select a budget in the visual editor. Optionally customize the title and choose the calculation view, and show or hide income categories, upcoming payments, and projected reserves.
+3. Select a budget in the visual editor. Optionally customize the title and choose the calculation view, and show or hide expense categories, upcoming payments, and projected reserves.
 
 <img src="docs/screenshot-card.png" alt="Autonomous Budget dashboard card" width="390">
 
@@ -171,9 +171,9 @@ Each budget is a device with eleven monetary sensors:
 | Income | Scheduled incoming money |
 | Expenses | All scheduled expenses |
 | Remaining | Income minus expenses |
-| Investment income | Incoming money categorized as Investment |
-| Mandatory income | Incoming money categorized as Mandatory |
-| Optional income | Incoming money categorized as Optional |
+| Investment expenses | Expenses categorized as Investment |
+| Mandatory expenses | Expenses categorized as Mandatory |
+| Optional expenses | Expenses categorized as Optional |
 | Income per pay period | Normalized income in the regular plan |
 | Expenses per pay period | Normalized expenses in the regular plan |
 | Remaining per pay period | Normalized income minus normalized expenses |
@@ -213,9 +213,13 @@ Data is stored in `.storage/autonomous_budget` within the Home Assistant configu
 
 Removing the integration keeps its stored budgets so reinstalling can restore them. Deleting a budget in the panel removes its entries and sensors. Use a Home Assistant backup before deleting data you may need again. The JSON export is for inspection and portability; an import UI is not included in this release.
 
-## Updating from 0.1.0
+## Updating from 0.1.0 or 0.2.0
 
-Download 0.2.0 in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets, IDs, optional pay schedules, and the original six sensor calculations are preserved. Five new sensors are added to each budget. No storage reset or manual migration is needed.
+Download **0.2.1** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+
+This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
+
+The three category sensors now measure expenses. Their entity IDs remain stable, so an existing ID may still end in `_income`; their displayed names and values are corrected. Prior Recorder history remains as recorded under the earlier calculation. The overall income, expense, remaining, and reserve calculations are unchanged. No storage reset is needed.
 
 The sidebar and custom card now default to **Per pay period**. Choose **Due dates**, or set `view: cashflow` on the card, for the earlier cash-flow display. The new balance fields are empty until you enter them.
 

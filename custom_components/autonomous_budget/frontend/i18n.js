@@ -1,5 +1,6 @@
 /** English source strings and French UI translations. User content is excluded. */
 const fr = {
+  "To categorize": "À catégoriser", "Choose a category": "Choisissez une catégorie",
   "Per pay period": "Par période de paie",
   "Due dates": "Échéances",
   "Calculation view": "Mode de calcul",
@@ -47,7 +48,7 @@ const fr = {
   "Entry": "Entrée", "Amount": "Montant", "Next due": "Prochaine échéance", "This period": "Cette période", "Edit": "Modifier", "Paused": "En pause",
   "No entries in this view": "Aucune entrée dans cette vue", "Give your money a plan": "Donnez une direction à votre argent",
   "Try another filter or add a new entry.": "Essayez un autre filtre ou ajoutez une entrée.", "Start with a paycheck, a subscription, or a bill. Every entry has its own schedule.": "Commencez par une paie, un abonnement ou une facture. Chaque entrée a son propre calendrier.",
-  "Add an entry": "Ajouter une entrée", "Where it comes from": "D’où viennent les revenus", "Expected income by category": "Revenus prévus par catégorie",
+  "Add an entry": "Ajouter une entrée", "Where your money goes": "Où va votre argent", "Expenses by category": "Dépenses par catégorie",
   "Coming up": "À venir", "Totals count payments due in the selected period.": "Les totaux comptent les échéances de la période sélectionnée.",
   "Nothing else is due in this period.": "Aucune autre échéance dans cette période.", "Nothing else is due this period.": "Aucune autre échéance dans cette période.",
   "Your plan follows actual due dates. Monthly bills appear in the pay period when they renew. These are projections, not cleared bank transactions.": "Votre budget suit les dates d’échéance. Les factures mensuelles figurent dans la période de leur renouvellement. Ces montants sont des prévisions, pas des transactions bancaires confirmées.",
@@ -57,7 +58,7 @@ const fr = {
   "Create a budget": "Créer un budget", "Budget name": "Nom du budget", "Currency": "Devise", "Pay period (optional)": "Période de paie (facultative)",
   "Payday / reference date (optional)": "Date de paie ou de référence (facultative)", "Create budget": "Créer le budget", "Delete budget": "Supprimer le budget",
   "e.g. Everyday life": "Ex. : Vie quotidienne", "Entry name": "Nom de l’entrée", "e.g. Netflix, rent, or paycheck": "Ex. : Netflix, loyer ou paie",
-  "Money flow": "Sens du mouvement", "Income category": "Catégorie de revenu", "Repeats": "Répétition", "First due / renewal date": "Première échéance ou renouvellement",
+  "Money flow": "Sens du mouvement", "Expense category": "Catégorie de dépense", "Repeats": "Répétition", "First due / renewal date": "Première échéance ou renouvellement",
   "End date (optional, inclusive)": "Date de fin (facultative, incluse)", "Active entry": "Entrée active", "Pause to exclude all occurrences.": "Mettez en pause pour exclure toutes les échéances.",
   "Edit entry": "Modifier l’entrée", "Delete entry": "Supprimer l’entrée", "Delete entry?": "Supprimer cette entrée ?", "Delete budget?": "Supprimer ce budget ?",
   "Delete": "Supprimer", "and all its entries": "et toutes ses entrées", "? This cannot be undone.": "? Cette action est irréversible.",
@@ -70,8 +71,8 @@ const fr = {
   "Could not load budgets. Check the integration and reload this page.": "Chargement impossible. Vérifiez l’intégration et rechargez la page.",
   "Autonomous Budget is not loaded.": "Autonomous Budget n’est pas chargé.", "This budget no longer exists. Choose another budget in the card editor.": "Ce budget n’existe plus. Choisissez un autre budget dans l’éditeur de carte.",
   "Create your first budget in the Autonomous Budget sidebar.": "Créez votre premier budget dans le menu Autonomous Budget.", "Scheduled for this period": "Prévu pour cette période",
-  "Income by category": "Revenus par catégorie", "Open Autonomous Budget": "Ouvrir Autonomous Budget", "Budget": "Budget", "First available budget": "Premier budget disponible",
-  "Title (optional)": "Titre (facultatif)", "Show income categories": "Afficher les catégories de revenus", "Show upcoming payments": "Afficher les prochaines échéances",
+  "Open Autonomous Budget": "Ouvrir Autonomous Budget", "Budget": "Budget", "First available budget": "Premier budget disponible",
+  "Title (optional)": "Titre (facultatif)", "Show expense categories": "Afficher les catégories de dépenses", "Show upcoming payments": "Afficher les prochaines échéances",
   "Budgets changed in another session. Close this dialog and try again.": "Les budgets ont été modifiés dans une autre session. Fermez cette fenêtre et réessayez.",
   "Budget no longer exists.": "Ce budget n’existe plus.", "Entry no longer exists.": "Cette entrée n’existe plus.",
   "A budget with entries cannot change currency. Create a new budget instead.": "La devise d’un budget contenant des entrées ne peut pas être modifiée. Créez un nouveau budget.",
@@ -89,12 +90,13 @@ export function translate(source, language) {
   if (result === undefined && text.includes(" · ")) result = text.split(" · ").map((part) => translate(part, language)).join(" · ");
   if (result === undefined) {
     const patterns = [
+      [/^(\d+) expenses need a category\. Edit each expense to choose one\.$/, (_, count) => `${count} dépenses sont à catégoriser. Modifiez chaque dépense pour choisir sa catégorie.`],
       [/^(\d+)\/(\d+) pay periods$/, (_, count, total) => `${count}/${total} périodes de paie`],
       [/^(\d+) remaining$/, (_, count) => `${count} restante${count === "1" ? "" : "s"}`],
       [/^and all its entries\? This cannot be undone\.$/, () => "et toutes ses entrées ? Cette action est irréversible."],
       [/^(\d+) scheduled payments this period$/, (_, count) => `${count} paiement${count === "1" ? "" : "s"} prévu${count === "1" ? "" : "s"} cette période`],
       [/^(\d+) due$/, (_, count) => `${count} échéance${count === "1" ? "" : "s"}`],
-      [/^(\d+)% of income$/, (_, count) => `${count} % des revenus`],
+      [/^(\d+)% of expenses$/, (_, count) => `${count} % des dépenses`],
       [/^(\d+) active entries$/, (_, count) => `${count} entrées actives`],
       [/^(\d+) active entries · Totals count payments due in the selected period\.$/, (_, count) => `${count} entrées actives · Les totaux comptent les échéances de la période sélectionnée.`],
       [/^Exchange rate to (\w+)$/, (_, currency) => `Taux de change vers ${currency}`],

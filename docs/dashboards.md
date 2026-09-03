@@ -16,7 +16,7 @@ The card follows the selected budget’s own pay period (or its inherited defaul
 
 `view: plan` (default) shows normalized amounts per pay period. `view: cashflow` shows actual scheduled payments. `show_reserves` (default `true`) adds today’s projected reserve and, when an account balance is configured, the available estimate. These options are available in the visual editor.
 
-`show_categories` controls the three **income** categories. Expenses are not categorized. Card labels, dates, and amounts follow the Home Assistant profile language (English or French).
+`show_categories` controls the three **expense** categories. Income has no category. Older expenses awaiting classification are shown separately as **To categorize** and remain included in expense totals. Card labels, dates, and amounts follow the Home Assistant profile language (English or French).
 
 ## A built-in glance card
 

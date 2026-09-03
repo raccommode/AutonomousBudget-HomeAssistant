@@ -42,13 +42,13 @@
         "name": "Remaining"
       },
       "investment": {
-        "name": "Investment income"
+        "name": "Investment expenses"
       },
       "mandatory": {
-        "name": "Mandatory income"
+        "name": "Mandatory expenses"
       },
       "optional": {
-        "name": "Optional income"
+        "name": "Optional expenses"
       },
       "planned_income": {
         "name": "Income per pay period"

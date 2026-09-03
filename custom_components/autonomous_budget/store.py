@@ -27,6 +27,16 @@ class BudgetStore:
     async def async_load(self, defaults: dict) -> None:
         """Load local data; never replace an unreadable store with empty budgets."""
         loaded = await self.storage.async_load()
+        if loaded is not None:
+            candidate = deepcopy(loaded)
+            for budget in candidate["budgets"]:
+                for item in budget["items"]:
+                    if item["direction"] == "income":
+                        item["category"] = None
+            if candidate != loaded:
+                candidate["revision"] += 1
+                await self.storage.async_save(candidate)
+                loaded = candidate
         self.data = (
             loaded if loaded is not None else {"revision": 0, "settings": validate_settings(defaults), "budgets": []}
         )

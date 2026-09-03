@@ -116,7 +116,7 @@ def validate_item(data: dict, budget_currency: str) -> dict:
     return {
         "name": text(data.get("name"), "Entry name"),
         "direction": direction,
-        "category": choice(data.get("category"), CATEGORIES, "income category") if direction == "income" else None,
+        "category": choice(data.get("category"), CATEGORIES, "expense category") if direction == "expense" else None,
         "amount": str(quantize(amount, currency)),
         "currency": currency,
         "exchange_rate": str(rate),
@@ -191,6 +191,9 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
     totals = dict.fromkeys(("income", "expenses", *CATEGORIES), Decimal(0))
     plan = totals.copy()
     reserved = Decimal(0)
+    review_count = 0
+    review_amount = Decimal(0)
+    review_planned = Decimal(0)
     entries = []
     due = []
     for item in budget["items"]:
@@ -202,9 +205,16 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
         reserved += Decimal(reserve["reserved_amount"]) if reserve else Decimal(0)
         totals["income" if item["direction"] == "income" else "expenses"] += amount
         plan["income" if item["direction"] == "income" else "expenses"] += planned
-        if item["direction"] == "income" and item.get("category") in CATEGORIES:
-            totals[item["category"]] += amount
-            plan[item["category"]] += planned
+        if item["direction"] == "expense":
+            if item.get("category") in CATEGORIES:
+                totals[item["category"]] += amount
+                plan[item["category"]] += planned
+            else:
+                # Older versions never stored expense categories. Keep their full
+                # financial contribution while asking the user to classify them.
+                review_count += 1
+                review_amount += amount
+                review_planned += planned
         # Include next renewal even when it falls outside the selected period.
         next_start = max(today, start, date.fromisoformat(item["renewal_date"]))
         upcoming = next_occurrence(item, next_start)
@@ -244,6 +254,11 @@ def summarize(budget: dict, settings: dict, today: date, offset: int = 0) -> dic
         "period_last_day": (end - timedelta(days=1)).isoformat(),
         "totals": {key: str(quantize(value, currency)) for key, value in totals.items()},
         "plan": {key: str(quantize(value, currency)) for key, value in plan.items()},
+        "category_review": {
+            "count": review_count,
+            "scheduled_amount": str(quantize(review_amount, currency)),
+            "planned_amount": str(quantize(review_planned, currency)),
+        },
         "reserves": {"amount": str(quantize(reserved, currency)), "as_of": today.isoformat()},
         "available_balance": str(quantize(available, currency)) if available is not None else None,
         "schedule": sorted(due, key=lambda row: (row["date"], row["name"])),

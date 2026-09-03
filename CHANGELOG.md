@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 — 2026-09-03
+
+Correct which entries have categories.
+
+- Income has no category; expenses require Investment, Mandatory, or Optional.
+- Correct expense breakdowns, percentages, dashboard-card options, native sensor names, and English/French labels.
+- Remove existing income categories automatically while preserving amounts, schedules, balances, and reserves.
+- Flag older uncategorized expenses for the user to classify. Continue including their amounts in financial totals without guessing a category.
+- Preserve sensor entity IDs; category sensor values now represent expenses.
+- Add regression coverage for validation, direction changes, migration, persistence, and dashboard behavior.
+
 ## 0.2.0 — 2026-09-02
 
 Pay-period planning inspired by the ALVES budget system.

@@ -14,6 +14,7 @@ def expense(**values):
     return validate_item(
         {
             "name": "Insurance",
+            "category": "optional",
             "amount": "280",
             "currency": "CAD",
             "direction": "expense",
@@ -144,7 +145,8 @@ def test_mixed_fx_income_and_expenses_round_per_entry():
         ]
     )
     assert result["plan"]["income"] == "2000.00"
-    assert result["plan"]["mandatory"] == "2000.00"
+    assert result["plan"]["mandatory"] == "0.00"
+    assert result["plan"]["optional"] == "168.23"
     assert result["plan"]["expenses"] == "168.23"  # 6.23 + 2 + 140 + 20
     assert result["plan"]["balance"] == "1831.77"
 

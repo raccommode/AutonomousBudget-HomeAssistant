@@ -50,6 +50,8 @@ test('desktop panel, period navigation, and dashboard card', async ({ page }) =>
   const card = page.locator('autonomous-budget-card');
   await expect(card.getByRole('heading', {name: 'Everyday life'})).toBeVisible();
   await expect(card.getByText('CAD 1,352.16', {exact: true})).toBeVisible();
+  await expect(card.getByRole('heading', {name: 'Expenses by category'})).toBeVisible();
+  await expect(card.locator('.category').filter({hasText:'Mandatory'})).toContainText('CAD 760.00');
   await card.screenshot({path: 'docs/screenshot-card.png'});
 });
 
@@ -65,11 +67,12 @@ test('create, edit, currency conversion, pause, reload, and delete', async ({ pa
   await panel.getByRole('button', {name: 'Save changes', exact:true}).click();
   await expect(panel.locator('.period-bar .badge')).toHaveText('Weekly');
   await panel.getByRole('button', {name: 'Add entry', exact:true}).click();
-  await expect(panel.getByLabel('Income category')).toBeHidden();
+  await expect(panel.getByLabel('Expense category')).toBeVisible();
   await panel.getByLabel('Money flow').selectOption('income');
-  await expect(panel.getByLabel('Income category')).toBeVisible();
+  await expect(panel.getByLabel('Expense category')).toBeHidden();
   await panel.getByLabel('Money flow').selectOption('expense');
-  await expect(panel.getByLabel('Income category')).toBeHidden();
+  await expect(panel.getByLabel('Expense category')).toBeVisible();
+  await panel.getByLabel('Expense category').selectOption('optional');
   await panel.getByLabel('Entry name').fill('Foreign subscription');
   await panel.getByLabel('Amount', {exact:true}).fill('10.00');
   await panel.getByLabel('Currency', {exact:true}).selectOption('USD');
@@ -82,7 +85,7 @@ test('create, edit, currency conversion, pause, reload, and delete', async ({ pa
   await expect(panel.locator('.stat .value').last()).toHaveText('CAD 0.00');
   await page.reload();
   await panel.getByRole('button', {name: 'Browser test budget CAD'}).click();
-  await expect(panel.getByText('Expense · Paused')).toBeVisible();
+  await expect(panel.getByText('Optional · Paused')).toBeVisible();
   await panel.getByRole('button', {name:'Edit budget',exact:true}).click();
   await panel.getByRole('button', {name:'Delete budget',exact:true}).click();
   await panel.getByRole('button', {name:'Delete budget',exact:true}).click();
@@ -118,9 +121,11 @@ test('French panel, optional pay schedule, and untranslated user names', async (
   await panel.getByRole('button', {name:'Créer le budget',exact:true}).click();
   await expect(panel.getByRole('heading', {name:'Income',exact:true})).toBeVisible();
   await panel.getByRole('button', {name:'Ajouter une entrée',exact:true}).first().click();
-  await expect(panel.getByLabel('Catégorie de revenu')).toBeHidden();
+  await expect(panel.getByLabel('Catégorie de dépense')).toBeVisible();
   await panel.getByLabel('Sens du mouvement').selectOption('income');
-  await expect(panel.getByLabel('Catégorie de revenu')).toBeVisible();
+  await expect(panel.getByLabel('Catégorie de dépense')).toBeHidden();
+  await panel.getByLabel('Sens du mouvement').selectOption('expense');
+  await expect(panel.getByLabel('Catégorie de dépense')).toBeVisible();
   await expect(panel.getByRole('option', {name:'Investissement',exact:true})).toHaveCount(1);
   await panel.getByRole('button', {name:'Annuler',exact:true}).click();
   await panel.getByRole('button', {name:'Modifier le budget',exact:true}).click();
@@ -147,6 +152,7 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
   await panel.getByRole('button', {name: 'Create budget', exact:true}).click();
   await expect(panel.getByRole('heading', {name: 'Reserve browser test'})).toBeVisible();
   await panel.getByRole('button', {name: 'Add entry', exact:true}).click();
+  await panel.getByLabel('Expense category').selectOption('mandatory');
   await panel.getByLabel('Entry name').fill('Insurance');
   await panel.getByLabel('Amount', {exact:true}).fill('120');
   await panel.getByLabel('First due / renewal date').fill(due);
@@ -160,6 +166,9 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
   const actual = await panel.evaluate(async el => (await el.hass.callWS({type: 'get_states'})).filter(state => state.attributes.budget_id === el.budget.id).map(state => ({metric: state.attributes.metric, state: state.state})));
   expect(actual).toEqual(expect.arrayContaining([
     {metric: 'expenses', state: '120.00'},
+    {metric: 'mandatory', state: '120.00'},
+    {metric: 'investment', state: '0.00'},
+    {metric: 'optional', state: '0.00'},
     {metric: 'planned_expenses', state: '55.38'},
     {metric: 'reserved', state: '120.00'},
     {metric: 'available_balance', state: '-40.00'},
@@ -171,7 +180,7 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
   const saved = exported.budgets.find(budget => budget.name === 'Reserve browser test');
   expect(saved.account_balance).toBe('100.00');
   expect(saved.credit_balance).toBe('20.00');
-  expect(saved.items[0].category).toBeNull();
+  expect(saved.items[0].category).toBe('mandatory');
   expect(saved.items[0]).not.toHaveProperty('reserve');
   expect(saved.items[0]).not.toHaveProperty('planned_amount');
   await panel.evaluate(async el => {
@@ -200,4 +209,44 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
   await panel.getByRole('button', {name:'Delete budget',exact:true}).click();
   await panel.getByRole('button', {name:'Delete budget',exact:true}).click();
   await expect(panel.getByRole('button', {name:'Reserve browser test CAD'})).toHaveCount(0);
+});
+
+test('income saves without category and changing direction requires an expense category', async ({ page }) => {
+  const panel = page.locator('autonomous-budget-panel');
+  await panel.getByRole('button', {name:'New budget', exact:true}).click();
+  await panel.getByLabel('Budget name', {exact:true}).fill('Category correction test');
+  await panel.getByRole('button', {name:'Create budget', exact:true}).click();
+  await panel.getByRole('button', {name:'Add entry', exact:true}).click();
+  await panel.getByLabel('Money flow').selectOption('income');
+  await expect(panel.getByLabel('Expense category')).toBeHidden();
+  await panel.getByLabel('Entry name').fill('Paycheck test');
+  await panel.getByLabel('Amount', {exact:true}).fill('1000');
+  await panel.getByLabel('Repeats').selectOption('biweekly');
+  await panel.getByRole('button', {name:'Add entry', exact:true}).last().click();
+  await expect(panel.locator('.stat .value').nth(1)).toHaveText('CAD 1,000.00');
+  expect(await panel.evaluate(el => el.budget.items[0].category)).toBeNull();
+  await expect(panel.locator('.category-list .amount')).toHaveText(['CAD 0.00', 'CAD 0.00', 'CAD 0.00']);
+  await panel.getByRole('button', {name:'Edit Paycheck test'}).click();
+  await panel.getByLabel('Money flow').selectOption('expense');
+  await expect(panel.getByLabel('Expense category')).toHaveValue('');
+  await panel.getByRole('button', {name:'Save changes', exact:true}).click();
+  await expect(panel.locator('dialog')).toBeVisible();
+  expect(await panel.getByLabel('Expense category').evaluate(el => el.validity.valueMissing)).toBe(true);
+  await panel.getByLabel('Expense category').selectOption('investment');
+  await panel.getByRole('button', {name:'Save changes', exact:true}).click();
+  await expect(panel.locator('.category-list .amount')).toHaveText(['CAD 1,000.00', 'CAD 0.00', 'CAD 0.00']);
+  await expect(panel.locator('.category-list').getByText('100% of expenses')).toBeVisible();
+  await page.reload();
+  await panel.getByRole('button', {name:'Category correction test CAD'}).click();
+  await panel.getByRole('button', {name:'Edit Paycheck test'}).click();
+  await expect(panel.getByLabel('Expense category')).toHaveValue('investment');
+  await panel.getByLabel('Money flow').selectOption('income');
+  await expect(panel.getByLabel('Expense category')).toBeHidden();
+  await panel.getByRole('button', {name:'Save changes', exact:true}).click();
+  await expect(panel.locator('.category-list .amount')).toHaveText(['CAD 0.00', 'CAD 0.00', 'CAD 0.00']);
+  expect(await panel.evaluate(el => el.budget.items[0].category)).toBeNull();
+  await panel.getByRole('button', {name:'Edit budget', exact:true}).click();
+  await panel.getByRole('button', {name:'Delete budget', exact:true}).click();
+  await panel.getByRole('button', {name:'Delete budget', exact:true}).click();
+  await expect(panel.getByRole('button', {name:'Category correction test CAD'})).toHaveCount(0);
 });

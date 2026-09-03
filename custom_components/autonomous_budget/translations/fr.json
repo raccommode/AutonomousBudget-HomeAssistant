@@ -42,13 +42,13 @@
         "name": "Restant"
       },
       "investment": {
-        "name": "Revenus d’investissement"
+        "name": "Dépenses d’investissement"
       },
       "mandatory": {
-        "name": "Revenus obligatoires"
+        "name": "Dépenses obligatoires"
       },
       "optional": {
-        "name": "Revenus facultatifs"
+        "name": "Dépenses facultatives"
       },
       "planned_income": {
         "name": "Revenus par période de paie"

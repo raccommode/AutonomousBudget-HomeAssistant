@@ -111,3 +111,84 @@ async def test_v010_store_loads_without_rewriting_and_balances_survive_edits(sto
     assert reloaded.data == fresh.data
     await reloaded.async_mutate("budget_update", {"budget_id": "old-budget", "account_balance": ""}, 9)
     assert reloaded.snapshot()["budgets"][0]["available_balance"] is None
+
+
+async def test_upgrade_removes_income_categories_without_guessing_expense_categories(store):
+    from copy import deepcopy
+
+    legacy = {
+        "revision": 10,
+        "settings": DEFAULTS,
+        "budgets": [
+            {
+                "id": "legacy",
+                "name": "Legacy",
+                "currency": "CAD",
+                "items": [
+                    {
+                        "id": "pay",
+                        "name": "Pay",
+                        "direction": "income",
+                        "category": "mandatory",
+                        "amount": "2000.00",
+                        "currency": "CAD",
+                        "exchange_rate": "1",
+                        "recurrence": "biweekly",
+                        "renewal_date": "2026-08-28",
+                        "active": True,
+                    },
+                    {
+                        "id": "bill",
+                        "name": "Bill",
+                        "direction": "expense",
+                        "category": None,
+                        "amount": "100.00",
+                        "currency": "CAD",
+                        "exchange_rate": "1",
+                        "recurrence": "monthly",
+                        "renewal_date": "2026-09-01",
+                        "active": True,
+                    },
+                ],
+            }
+        ],
+    }
+    original = deepcopy(legacy)
+    await store.storage.async_save(legacy)
+    fresh = BudgetStore(store.hass)
+    await fresh.async_load(DEFAULTS)
+    expected = deepcopy(legacy)
+    expected["revision"] = 11
+    expected["budgets"][0]["items"][0]["category"] = None
+    assert fresh.data == expected
+    assert legacy == original
+    assert fresh.snapshot()["budgets"][0]["category_review"]["count"] == 1
+    reloaded = BudgetStore(store.hass)
+    await reloaded.async_load(DEFAULTS)
+    assert reloaded.data == expected  # Idempotent, including revision.
+    item = expected["budgets"][0]["items"][1]
+    await reloaded.async_mutate(
+        "item_update", item | {"budget_id": "legacy", "item_id": "bill", "category": "mandatory"}, 11
+    )
+    assert reloaded.snapshot()["budgets"][0]["category_review"]["count"] == 0
+    await reloaded.async_mutate(
+        "item_update", item | {"budget_id": "legacy", "item_id": "bill", "direction": "income"}, 12
+    )
+    assert reloaded.data["budgets"][0]["items"][1]["category"] is None
+    with pytest.raises(ValidationError):
+        await reloaded.async_mutate("item_update", item | {"budget_id": "legacy", "item_id": "bill"}, 13)
+
+
+async def test_failed_category_migration_does_not_publish_or_overwrite_old_store(store):
+    legacy = {
+        "revision": 2,
+        "settings": DEFAULTS,
+        "budgets": [{"items": [{"direction": "income", "category": "mandatory"}]}],
+    }
+    await store.storage.async_save(legacy)
+    fresh = BudgetStore(store.hass)
+    fresh.storage.async_save = AsyncMock(side_effect=OSError("disk full"))
+    with pytest.raises(OSError):
+        await fresh.async_load(DEFAULTS)
+    assert fresh.data == {}
+    assert await store.storage.async_load() == legacy

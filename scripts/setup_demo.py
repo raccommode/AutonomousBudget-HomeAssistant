@@ -146,7 +146,7 @@ async def main():
             if not snapshot["budgets"]:
                 budget_id = (await mutate("budget_create", {"name": "Everyday life", "currency": "CAD"}))["id"]
                 for name, amount, category, direction, recurrence, days in [
-                    ("Paycheck", "2450", "mandatory", "income", "biweekly", 0),
+                    ("Paycheck", "2450", None, "income", "biweekly", 0),
                     ("Rent", "975", "mandatory", "expense", "monthly", 4),
                     ("Groceries", "140", "mandatory", "expense", "weekly", 2),
                     ("Future fund", "250", "investment", "expense", "biweekly", 0),

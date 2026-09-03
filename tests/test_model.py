@@ -100,9 +100,9 @@ def test_actual_cashflow_with_mixed_currencies_and_categories():
     assert result["totals"] == {
         "income": "2000.00",
         "expenses": "1013.50",
-        "mandatory": "2000.00",
-        "investment": "0.00",
-        "optional": "0.00",
+        "mandatory": "800.00",
+        "investment": "200.00",
+        "optional": "13.50",
         "balance": "986.50",
     }
     assert result["items"][-1]["period_amount"] == "0.00"
@@ -136,7 +136,7 @@ def test_invalid_amounts_rejected(value):
     [
         {"currency": "FAKE"},
         {"direction": "out"},
-        {"direction": "income", "category": "other"},
+        {"direction": "expense", "category": "other"},
         {"recurrence": "never"},
         {"name": "   "},
         {"renewal_date": "2026-02-30"},
@@ -178,12 +178,33 @@ def test_next_due_includes_a_first_payment_more_than_a_year_away():
     assert result["totals"]["expenses"] == "0.00"
 
 
-def test_expenses_have_no_category_and_income_requires_one():
-    assert entry()["category"] is None
-    assert entry(category=None)["category"] is None
-    assert entry(direction="income", category="investment")["category"] == "investment"
+@pytest.mark.parametrize("category", [None, "investment", "mandatory", "optional", "obsolete"])
+def test_income_has_no_category_even_when_client_sends_one(category):
+    assert entry(direction="income", category=category)["category"] is None
+
+
+@pytest.mark.parametrize("category", ["investment", "mandatory", "optional"])
+def test_expenses_require_one_of_three_categories(category):
+    assert entry(category=category)["category"] == category
     with pytest.raises(ValidationError):
-        entry(direction="income", category=None)
+        entry(category=None)
+
+
+def test_uncategorized_legacy_expense_stays_in_total_and_requires_review():
+    result = summarize(
+        {
+            "id": "old",
+            "name": "Old",
+            "currency": "CAD",
+            "items": [entry(amount="26", recurrence="biweekly") | {"category": None}],
+        },
+        {"period": "biweekly", "anchor": "2024-01-31"},
+        date(2024, 1, 31),
+    )
+    assert result["category_review"] == {"count": 1, "scheduled_amount": "26.00", "planned_amount": "26.00"}
+    assert result["totals"]["expenses"] == result["plan"]["expenses"] == "26.00"
+    assert result["totals"]["optional"] == "0.00"
+    assert result["reserves"]["amount"] == "0.00"
 
 
 def test_optional_per_budget_period_and_anchor_overrides():

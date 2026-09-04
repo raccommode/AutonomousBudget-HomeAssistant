@@ -228,6 +228,42 @@ test("investment operation and CSV import use the real finance backend", async (
   await expect(
     f.getByRole("row").filter({ hasText: "Account fee" }),
   ).toBeVisible();
+  await expect(f.locator("dialog")).not.toBeVisible();
+  await f.getByRole("button", { name: "Import", exact: true }).click();
+  await f.locator('input[type="file"]').setInputFiles({
+    name: "paged.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "date,amount,payee\n" +
+        Array.from(
+          { length: 205 },
+          (_, i) => `2026-09-02,-0.01,Preview entry ${i}`,
+        ).join("\n"),
+    ),
+  });
+  await f.getByRole("button", { name: "Preview", exact: true }).click();
+  const dialog = f.locator("dialog");
+  await expect(dialog.locator('input[name^="line:"]')).toHaveCount(100);
+  await dialog.locator('input[name="line:2"]').uncheck();
+  await dialog.getByRole("button", { name: "Next", exact: true }).click();
+  await dialog.locator('input[name="line:102"]').uncheck();
+  await dialog.getByRole("button", { name: "Previous", exact: true }).click();
+  await expect(dialog.locator('input[name="line:2"]')).not.toBeChecked();
+  await dialog.getByRole("button", { name: "Next", exact: true }).click();
+  await dialog.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(dialog.locator('input[name^="line:"]')).toHaveCount(5);
+  await dialog.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  const imported = await f.evaluate(
+    (el, id) => el.api("transactions", { account_id: id, limit: 500 }),
+    fixture.acc.id,
+  );
+  expect(imported.total).toBe(205);
+  expect(
+    imported.rows.some(
+      (t) => t.payee === "Preview entry 0" || t.payee === "Preview entry 100",
+    ),
+  ).toBe(false);
 });
 
 test("separate Home Assistant user cannot read private accounts and loses revoked access", async ({

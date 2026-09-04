@@ -242,9 +242,11 @@ def parse_file(content, format_name, options=None):
     return {"rows": rows, "errors": errors}
 
 
-def preview(db, actor, p):
+def preview(db, actor, p, paginated=False):
     acc = account(db, p["account_id"], actor, True)
     parsed = parse_file(p["file"], p["format"], p.get("options"))
+    raw_rows = parsed["rows"][:]
+    source_names = sorted({r.get("source_name") for r in parsed["rows"] if r.get("source_name")})
     seen = set()
     occurrences = {}
     valid = []
@@ -306,7 +308,27 @@ def preview(db, actor, p):
         except (ValidationError, ValueError, KeyError) as err:
             parsed["errors"].append({"line": row["line"], "message": str(err)})
     parsed["rows"] = valid
-    parsed["source_accounts"] = sorted({r.get("source_name") for r in parsed["rows"] if r.get("source_name")})
+    parsed["source_accounts"] = source_names
+    if paginated:
+        offset = max(0, int(p.get("preview_offset", 0)))
+        limit = min(500, max(1, int(p.get("preview_limit", 100))))
+        categories = {
+            name
+            for row in raw_rows
+            for name in [row.get("category_name"), *[s.get("category_name") for s in row.get("split_names", [])]]
+            if name and not name.startswith("[")
+        }
+        parsed.update(
+            total=len(valid),
+            error_count=len(parsed["errors"]),
+            offset=offset,
+            limit=limit,
+            category_names=sorted(categories),
+            security_names=sorted({r["instrument_ref"] for r in raw_rows if r.get("entry_type") == "trade"}),
+            transfer_names=sorted({r["transfer_account_name"] for r in raw_rows if r.get("transfer_account_name")}),
+        )
+        parsed["rows"] = valid[offset : offset + limit]
+        parsed["errors"] = parsed["errors"][offset : offset + limit]
     return parsed
 
 
@@ -319,9 +341,10 @@ def commit_import(db, actor, p):
     ):
         raise ValidationError("Map each source account before importing a multi-account file.")
     selected = p.get("selected_lines")
+    excluded = set(p.get("excluded_lines", []))
     imported = 0
     for row in parsed["rows"]:
-        if row["duplicate"] or (selected is not None and row["line"] not in selected):
+        if row["duplicate"] or row["line"] in excluded or (selected is not None and row["line"] not in selected):
             continue
         if row.get("entry_type") == "trade":
             from .finance import put

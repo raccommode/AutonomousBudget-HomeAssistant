@@ -469,3 +469,20 @@ def test_shared_journal_metadata_is_readable_and_restorable(engine, tmp_path):
     assert destination.query("bob", "transactions")["total"] == 1
     engine.mutate("alice", "save", acc | {"sharing": {}})
     assert engine.query("bob", "snapshot")["objects"] == []
+
+
+def test_import_api_pages_do_not_truncate_the_committed_file(engine):
+    from custom_components.autonomous_budget.imports import preview
+
+    acc = account(engine)
+    p = {
+        "account_id": acc["id"],
+        "format": "csv",
+        "file": "date,amount,payee\n" + "\n".join(f"2026-09-01,-1,Row {i}" for i in range(205)),
+    }
+    with connect(engine.path) as db:
+        first = preview(db, "alice", p, True)
+        last = preview(db, "alice", p | {"preview_offset": 200}, True)
+    assert len(first["rows"]) == 100 and len(last["rows"]) == 5 and first["total"] == 205
+    result = engine.mutate("alice", "import", p | {"excluded_lines": [2, 102]})
+    assert result["imported"] == 203

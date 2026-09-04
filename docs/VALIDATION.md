@@ -4,7 +4,7 @@ The release is published only after the GitHub CI jobs pass for its commit: Pyth
 
 ## Automated coverage
 
-- 150 Python tests: existing budget calculations and identifiers; negative and income-day reserves; SQLite migration/rollback; private sharing and revocation; exact splits, transfers, refunds, reconciliation; dated exchange rates; average/FIFO positions and cost-preserving security transfers; loan projections/payments; imports and restoration; budget allocations; provider failures and synchronization conflicts.
+- 151 Python tests: existing budget calculations and identifiers; negative and income-day reserves; SQLite migration/rollback; private sharing and revocation; exact splits, transfers, refunds, reconciliation; dated exchange rates; average/FIFO positions and cost-preserving security transfers; loan projections/payments; imports and restoration; budget allocations; provider failures and synchronization conflicts.
 - A 100,000-transaction fixture verifies indexed pagination and a small metadata snapshot instead of sending the journal to cards.
 - 15 Playwright tests use a real disposable Home Assistant instance: the existing budget/card flows, desktop/mobile English/French interfaces, account entry/reconciliation, investment/cash updates, HTTP CSV import, private cards, a second authenticated user, revocation, and opt-in native sensor publication/removal.
 - Python lint/format, syntax checks on all frontend modules, manifest validation and HACS custom-repository checks.

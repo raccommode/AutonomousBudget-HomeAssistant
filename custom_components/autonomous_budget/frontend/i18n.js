@@ -1,5 +1,6 @@
 /** English source strings and French UI translations. User content is excluded. */
 const fr = {
+  "Import includes selected rows from every page.": "L’import inclut les lignes sélectionnées sur toutes les pages.",
   "Missing exchange rate for linked accounts.": "Taux de change manquant pour les comptes liés.",
   "Balances come from linked accounts.": "Les soldes proviennent des comptes liés.",
   "Balances come from linked accounts. Manage allocations in Finance settings.": "Les soldes proviennent des comptes liés. Gérez les répartitions dans les paramètres financiers.",

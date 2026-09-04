@@ -118,7 +118,7 @@ async def websocket_finance(hass, connection, msg):
 
             def parse():
                 with connect(engine.path) as db:
-                    return preview(db, actor, payload)
+                    return preview(db, actor, payload, True)
 
             result = await hass.async_add_executor_job(parse)
         elif command.startswith("provider_"):

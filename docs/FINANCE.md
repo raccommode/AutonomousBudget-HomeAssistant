@@ -39,7 +39,7 @@ Use **Accounts → Transactions → Import** and choose CSV, OFX/QFX, or QIF. Mi
 
 1. Choose the local account, file format, date pattern, decimal separator and CSV delimiter.
 2. Map column names for CSV. Optional columns include `category_name`, `source_name`, `transfer_account_name`, and investment `action`, `quantity`, `price`, `fee`, `instrument_ref`.
-3. Review the preview and line errors. Map source accounts, categories, transfer destinations and securities to local records. For a multi-account QIF file, map every source account.
+3. Review the paginated preview and line errors. Your selections and mappings are retained between pages; confirmation imports selected rows from every page. Map source accounts, categories, transfer destinations and securities to local records. For a multi-account QIF file, map every source account.
 4. Supply actual amounts for transfers between currencies and historical rates for foreign-currency security operations.
 5. Select the rows to import. Duplicate external IDs/fingerprints are skipped. Potential matches to manual entries start unchecked; select a row only when it is a separate real transaction. Valid rows can be imported after explicitly acknowledging errors.
 
@@ -146,4 +146,4 @@ The application export contains the financial state; a normal Home Assistant con
 
 Budget WebSocket interfaces keep their existing names. Financial requests use `autonomous_budget/finance` with `command`, `payload`, and `revision` for user mutations. Read commands include `snapshot`, `transactions`, `portfolio`, `trades`, `calendar`, `reconciliations`, `reports`, `audit`, `export` and `budgets`. `transactions` accepts `account_id`, `account_ids`, `from`, `to`, `status`, `search`, category/budget/asset filters, `limit` and `offset`, returning `{rows,total}`. `autonomous_budget/finance_subscribe` sends invalidations only; clients fetch their own authorized data.
 
-Authenticated file operations use `POST /api/autonomous_budget/finance_file` for `import_preview`, `import` and `restore` so backups are not constrained by WebSocket request frame size. Uploads are limited to 128 MB; import content is limited to 10 MB. Large imports and all SQLite/network work run asynchronously or in Home Assistant's executor, not on its event loop.
+Authenticated file operations use `POST /api/autonomous_budget/finance_file` for `import_preview`, `import` and `restore` so backups are not constrained by WebSocket request frame size. Preview requests accept `preview_offset` and `preview_limit` (100 by default, maximum 500); responses include row/error counts and column-mapping metadata. `excluded_lines` can retain selections across pages without truncating the committed file. Uploads are limited to 128 MB; import content is limited to 10 MB. Large imports and all SQLite/network work run asynchronously or in Home Assistant's executor, not on its event loop.

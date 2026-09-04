@@ -44,7 +44,7 @@ class FinanceFilesView(HomeAssistantView):
 
                 def inspect():
                     with connect(engine.path) as db:
-                        return preview(db, actor.id, payload)
+                        return preview(db, actor.id, payload, True)
 
                 result = await hass.async_add_executor_job(inspect)
             else:

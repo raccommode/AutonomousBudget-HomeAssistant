@@ -372,6 +372,28 @@ export class FinancePanel extends BudgetLiveElement {
     const acc = this.obj(this.selected);
     const save = (p) => this.api("save", p, true);
     const enumRows = (values) => values.map((v) => [v, this.t(names[v] || v)]);
+    if (action === "import-next" || action === "import-previous") {
+      this.captureImport();
+      const s = this.importSession;
+      const offset = Math.max(
+        0,
+        s.preview.offset +
+          (action === "import-next" ? s.preview.limit : -s.preview.limit),
+      );
+      const account_mapping = Object.fromEntries(
+        (s.preview.source_accounts || [])
+          .map((name, i) => [name, s.values["source:" + i]])
+          .filter(([, v]) => v),
+      );
+      const preview = await this.api("import_preview", {
+        ...s.payload,
+        account_mapping,
+        preview_offset: offset,
+        preview_limit: s.preview.limit,
+      });
+      this.importPreview(s.payload, preview, s);
+      return;
+    }
     if (action === "close") {
       this.shadowRoot.querySelector("dialog").close();
       return;
@@ -1670,29 +1692,18 @@ export class FinancePanel extends BudgetLiveElement {
       "Done",
     );
   }
-  importPreview(payload, preview) {
-    const categoryNames = [
-      ...new Set(
-        preview.rows
-          .flatMap((r) => [
-            r.category_name,
-            ...(r.split_names || []).map((s) => s.category_name),
-          ])
-          .filter((n) => n && !n.startsWith("[")),
-      ),
-    ];
-    const securityNames = [
-      ...new Set(
-        preview.rows
-          .filter((r) => r.entry_type === "trade")
-          .map((r) => r.instrument_ref),
-      ),
-    ];
-    const transferNames = [
-      ...new Set(
-        preview.rows.map((r) => r.transfer_account_name).filter(Boolean),
-      ),
-    ];
+  importPreview(payload, preview, session = null) {
+    session ||= {
+      payload,
+      values: {},
+      excluded: new Set(),
+      separate: new Set(),
+    };
+    this.importSession = session;
+    session.preview = preview;
+    const categoryNames = preview.category_names || [];
+    const securityNames = preview.security_names || [];
+    const transferNames = preview.transfer_names || [];
     const accountNames = preview.source_accounts || [];
     const fields = (values, prefix, title, rows) =>
       values
@@ -1709,7 +1720,7 @@ export class FinancePanel extends BudgetLiveElement {
         .join("");
     this.form(
       "Import preview",
-      `<div class="full">${preview.errors.map((e) => `<p class="error" translate="no">${e.line}: ${esc(e.message)}</p>`).join("")}<div class="table"><table>${preview.rows.map((r) => `<tr><td><input name="line:${r.line}" type="checkbox" ${!r.duplicate && !r.possible_matches.length ? "checked" : ""} ${r.duplicate ? "disabled" : ""}></td><td>${r.date}</td><td translate="no">${esc(r.payee || r.description)}</td><td>${r.amount}</td><td>${r.duplicate ? "Duplicate" : r.possible_matches.length ? "Possible duplicate" : ""}</td></tr>`).join("")}</table></div></div>` +
+      `<div class="full"><p>${preview.total} <span>transactions</span> · <span>Import includes selected rows from every page.</span></p><div class="toolbar">${preview.offset ? this.button("import-previous", "Previous") : ""}${preview.offset + preview.limit < Math.max(preview.total, preview.error_count) ? this.button("import-next", "Next") : ""}</div>${preview.errors.map((e) => `<p class="error" translate="no">${e.line}: ${esc(e.message)}</p>`).join("")}<div class="table"><table>${preview.rows.map((r) => `<tr><td><input name="line:${r.line}" type="checkbox" ${!r.duplicate && !session.excluded.has(r.line) && (!r.possible_matches.length || session.separate.has(r.line)) ? "checked" : ""} ${r.duplicate ? "disabled" : ""}></td><td>${r.date}</td><td translate="no">${esc(r.payee || r.description)}</td><td>${r.amount}</td><td>${r.duplicate ? "Duplicate" : r.possible_matches.length ? "Possible duplicate" : ""}</td></tr>`).join("")}</table></div></div>` +
         fields(categoryNames, "cat:", "Category", this.list("category")) +
         fields(
           securityNames,
@@ -1743,7 +1754,7 @@ export class FinancePanel extends BudgetLiveElement {
             this.field(
               "fx:" + r.line,
               "Historical exchange rate",
-              "1",
+              "",
               "number",
             ),
           )
@@ -1754,21 +1765,20 @@ export class FinancePanel extends BudgetLiveElement {
           false,
         ),
       (d) => {
+        this.captureImport();
+        d = { ...session.values, ...d };
         const mapping = (values, prefix) =>
           Object.fromEntries(
             values
               .map((name, index) => [name, d[prefix + index]])
               .filter(([, value]) => value),
           );
-        const selected = Object.keys(d)
-          .filter((k) => k.startsWith("line:") && d[k])
-          .map((k) => Number(k.slice(5)));
         return this.api(
           "import",
           {
             ...payload,
-            selected_lines: selected,
-            keep_separate: selected,
+            excluded_lines: [...session.excluded],
+            keep_separate: [...session.separate],
             accept_valid_rows: d.accept_valid_rows,
             category_mapping: mapping(categoryNames, "cat:"),
             instrument_mapping: mapping(securityNames, "security:"),
@@ -1790,6 +1800,35 @@ export class FinancePanel extends BudgetLiveElement {
       },
       "Import",
     );
+    for (const input of this.shadowRoot.querySelectorAll(
+      "dialog form input, dialog form select, dialog form textarea",
+    )) {
+      if (input.name in session.values) {
+        if (input.type === "checkbox")
+          input.checked = session.values[input.name];
+        else input.value = session.values[input.name];
+      }
+    }
+  }
+  captureImport() {
+    const session = this.importSession;
+    const form = this.shadowRoot.querySelector("dialog form");
+    if (!session || !form) return;
+    for (const input of form.querySelectorAll("input, select, textarea")) {
+      if (!input.name) continue;
+      const value = input.type === "checkbox" ? input.checked : input.value;
+      session.values[input.name] = value;
+      if (input.name.startsWith("line:")) {
+        const line = Number(input.name.slice(5));
+        if (value) {
+          session.excluded.delete(line);
+          session.separate.add(line);
+        } else {
+          session.excluded.add(line);
+          session.separate.delete(line);
+        }
+      }
+    }
   }
   csvCell(value) {
     const text = String(value ?? "");

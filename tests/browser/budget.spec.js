@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }, testInfo) => {
     localStorage.setItem('selectedLanguage', JSON.stringify(language));
   }, {tokens, language});
   await page.goto('/autonomous-budget');
-  await expect(page.locator('autonomous-budget-panel h1')).toHaveText(language === 'fr' ? 'Votre argent, en un regard.' : 'Your money, in view.');
+  await expect(page.locator('autonomous-budget-view h1')).toHaveText(language === 'fr' ? 'Votre argent, en un regard.' : 'Your money, in view.');
   await expect(page.locator('#ha-launch-screen')).toHaveCount(0);
 });
 
@@ -19,7 +19,7 @@ test.afterEach(async ({ page }, testInfo) => {
 });
 
 test('desktop panel, period navigation, and dashboard card', async ({ page }) => {
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   await expect(panel.getByRole('cell', {name: /Netflix/}).first()).toBeVisible();
   await expect(panel.getByText('CAD 1,352.16', {exact: true})).toBeVisible();
   await panel.getByRole('button', {name: 'Due dates', exact: true}).click();
@@ -68,7 +68,7 @@ test('desktop panel, period navigation, and dashboard card', async ({ page }) =>
 });
 
 test('create, edit, currency conversion, pause, reload, and delete', async ({ page }) => {
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   await panel.getByRole('button', {name: 'New budget', exact: true}).click();
   await panel.getByLabel('Budget name', {exact:true}).fill('Browser test budget');
   await panel.getByRole('button', {name: 'Create budget', exact:true}).click();
@@ -106,7 +106,7 @@ test('create, edit, currency conversion, pause, reload, and delete', async ({ pa
 
 test('mobile layout and editable settings', async ({ page }) => {
   await page.setViewportSize({width: 390, height: 844});
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   // Close the HA drawer if it persisted from desktop.
   await expect(panel.getByRole('heading', {name:'Your money, in view.'})).toBeVisible();
   await page.screenshot({path:'docs/screenshot-mobile.png', fullPage:true});
@@ -123,7 +123,7 @@ test('mobile layout and editable settings', async ({ page }) => {
 });
 
 test('French panel, optional pay schedule, and untranslated user names', async ({ page }) => {
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   await expect(panel.getByRole('button', {name:'Paramètres',exact:true})).toBeVisible();
   await expect(panel.getByText('Revenus par période de paie', {exact:true})).toBeVisible();
   await expect(panel.getByText('1\u202f352,16 CAD', {exact:true})).toBeVisible();
@@ -158,7 +158,7 @@ test('French panel, optional pay schedule, and untranslated user names', async (
 });
 
 test('paycheck reserves, manual available balance, native sensors, export, and card editor', async ({ page }) => {
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   const today = await panel.evaluate(el => el.data.today);
   const tomorrow = new Date(`${today}T12:00:00Z`);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
@@ -249,7 +249,7 @@ test('paycheck reserves, manual available balance, native sensors, export, and c
 });
 
 test('income saves without category and changing direction requires an expense category', async ({ page }) => {
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   await panel.getByRole('button', {name:'New budget', exact:true}).click();
   await panel.getByLabel('Budget name', {exact:true}).fill('Category correction test');
   await panel.getByRole('button', {name:'Create budget', exact:true}).click();
@@ -298,7 +298,7 @@ test('income saves without category and changing direction requires an expense c
 });
 
 test('shared budget allocation synchronizes personal expenses, sensors, export, and removal', async ({ page }) => {
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   const created = [];
   async function create(name, kind = 'personal', period = 'biweekly', anchor = '2026-08-28') {
     await panel.getByRole('button', {name:'New budget', exact:true}).click();
@@ -393,7 +393,7 @@ test('shared budget allocation synchronizes personal expenses, sensors, export, 
 
 test('French shared budget allocation fits mobile and translates automatic contributions', async ({ page }) => {
   await page.setViewportSize({width:390, height:844});
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   const ids = [];
   try {
     // Seed disposable personal and common budgets through the authenticated API.
@@ -433,7 +433,7 @@ test('French shared budget allocation fits mobile and translates automatic contr
 
 for (const language of ['English', 'French']) {
   test(`${language} card blocks can each be shown alone, hidden, and restored from saved configuration`, async ({ page }) => {
-    const panel = page.locator('autonomous-budget-panel');
+    const panel = page.locator('autonomous-budget-view');
     const id = await panel.evaluate(async p => (await p.hass.callWS({type:'autonomous_budget/mutate', action:'budget_create', payload:{name:'Card options test', currency:'CAD', account_balance:'1000'}, revision:p.data.revision})).id);
     await expect.poll(() => panel.evaluate((p, id) => p.data.budgets.some(b => b.id === id), id)).toBe(true);
     try {
@@ -491,7 +491,7 @@ for (const language of ['English', 'French']) {
 }
 
 test('income-day expenses and common contributions stay visible but leave reserves, cards, and sensors', async ({ page }) => {
-  const panel = page.locator('autonomous-budget-panel');
+  const panel = page.locator('autonomous-budget-view');
   const ids = [];
   const today = await panel.evaluate(p => p.data.today);
   const shifted = days => { const day = new Date(`${today}T12:00:00Z`); day.setUTCDate(day.getUTCDate() + days); return day.toISOString().slice(0, 10); };

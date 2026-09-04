@@ -4,11 +4,12 @@
     "step": {
       "user": {
         "title": "Votre argent, à votre rythme",
-        "description": "Choisissez les réglages par défaut de vos budgets. Chaque budget peut définir sa période et sa date de paie, de façon facultative. Laissez la date de référence vide pour utiliser la date du jour.",
+        "description": "Choisissez votre devise et votre vue de départ. Le calendrier de paie est facultatif : vous pouvez utiliser les comptes et placements sans créer de budget.",
         "data": {
           "currency": "Devise par défaut",
-          "period": "Période budgétaire par défaut",
-          "anchor": "Date de référence par défaut (facultative)"
+          "period": "Période du budget (facultative)",
+          "anchor": "Date de référence par défaut (facultative)",
+          "start_view": "Ouvrir au démarrage"
         }
       }
     },
@@ -27,6 +28,12 @@
         "biweekly": "Toutes les deux semaines",
         "monthly": "Tous les mois",
         "yearly": "Tous les ans"
+      }
+    },
+    "start_view": {
+      "options": {
+        "budgets": "Budgets",
+        "accounts": "Comptes"
       }
     }
   },

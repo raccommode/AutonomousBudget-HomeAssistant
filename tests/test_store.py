@@ -192,3 +192,43 @@ async def test_failed_category_migration_does_not_publish_or_overwrite_old_store
         await fresh.async_load(DEFAULTS)
     assert fresh.data == {}
     assert await store.storage.async_load() == legacy
+
+
+async def test_shared_link_never_broadcasts_private_projection_before_access_refresh(store):
+    from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
+    from custom_components.autonomous_budget.const import SIGNAL_CHANGED
+    from custom_components.autonomous_budget.finance import Finance
+    from custom_components.autonomous_budget.finance_api import budget_context
+
+    common = (await store.async_mutate("budget_create", {"name": "Common", "currency": "CAD", "kind": "shared"}, 0))[
+        "id"
+    ]
+    personal = (await store.async_mutate("budget_create", {"name": "Private person", "currency": "CAD"}, 1))["id"]
+    engine = Finance(store.storage.path)
+    acc = engine.mutate(
+        "alice",
+        "save",
+        {
+            "kind": "account",
+            "name": "Private",
+            "currency": "CAD",
+            "opening_date": "2026-01-01",
+            "opening_balance": "1234",
+        },
+    )
+    engine.mutate(
+        "alice", "save", {"kind": "budget_link", "account_id": acc["id"], "budget_id": personal, "percentage": "100"}
+    )
+    store.finance_context = budget_context(store.storage.path, store.data["budgets"], "2026-09-01")
+    snapshots = []
+    unsubscribe = async_dispatcher_connect(
+        store.hass, SIGNAL_CHANGED, lambda: snapshots.append(store.visible_snapshot("bob"))
+    )
+    await store.async_mutate(
+        "budget_update", {"budget_id": common, "allocations": [{"budget_id": personal, "percentage": "100"}]}, 2
+    )
+    await store.hass.async_block_till_done()
+    unsubscribe()
+    assert snapshots and all(s["budgets"] == [] for s in snapshots)
+    assert engine.query("bob", "reports")["budget_comparisons"] == []

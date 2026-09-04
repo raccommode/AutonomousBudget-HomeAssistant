@@ -22,8 +22,8 @@ def validate_links(budgets: list[dict]) -> None:
                 raise ValidationError("Contributions must go to an existing personal budget.")
             if target["id"] in seen:
                 raise ValidationError("Each personal budget can appear only once in an allocation.")
-            if target["currency"] != source["currency"]:
-                raise ValidationError("Shared and personal budgets must use the same currency.")
+            if target["currency"] != source["currency"] and not allocation.get("exchange_rate"):
+                raise ValidationError("An explicit planning exchange rate is required for different currencies.")
             seen.add(target["id"])
             total += Decimal(allocation["percentage"])
         if total > 100:
@@ -76,16 +76,24 @@ def summarize_budgets(budgets: list[dict], settings: dict, today: date, offset: 
             period = target.get("period") or settings["period"]
             anchor = date.fromisoformat(target.get("anchor") or settings["anchor"])
             start, end = period_bounds(today, period, anchor, offset)
-            amount = amounts(source, period, start, end)[target["id"]]
+            fx = (
+                Decimal(allocation.get("exchange_rate", "1"))
+                if source["currency"] != target["currency"]
+                else Decimal(1)
+            )
+            amount = quantize(amounts(source, period, start, end)[target["id"]] * fx, target["currency"])
             current_start, current_end = period_bounds(today, period, anchor)
-            reserved_amount = amounts(source, period, current_start, current_end)[target["id"]]
+            reserved_amount = quantize(
+                amounts(source, period, current_start, current_end)[target["id"]] * fx, target["currency"]
+            )
             next_date = max(start, current_start if current_start == today else current_end)
             next_start, next_end = period_bounds(next_date, period, anchor)
-            next_amount = amounts(source, period, next_start, next_end)[target["id"]]
+            next_amount = quantize(amounts(source, period, next_start, next_end)[target["id"]] * fx, target["currency"])
             members.append(
                 allocation
                 | {
                     "name": target["name"],
+                    "currency": target["currency"],
                     "period": period,
                     "anchor": anchor.isoformat(),
                     "amount": str(amount),

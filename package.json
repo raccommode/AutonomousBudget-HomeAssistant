@@ -1,10 +1,10 @@
 {
   "name": "autonomous-budget-home-assistant",
-  "version": "0.4.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check custom_components/autonomous_budget/frontend/i18n.js && node --check custom_components/autonomous_budget/frontend/shared.js && node --check custom_components/autonomous_budget/frontend/autonomous-budget-panel.js && node --check custom_components/autonomous_budget/frontend/autonomous-budget-card.js",
+    "check": "node --check custom_components/autonomous_budget/frontend/i18n.js && node --check custom_components/autonomous_budget/frontend/shared.js && node --check custom_components/autonomous_budget/frontend/autonomous-budget-panel.js && node --check custom_components/autonomous_budget/frontend/autonomous-budget-card.js && node --check custom_components/autonomous_budget/frontend/finance-panel.js && node --check custom_components/autonomous_budget/frontend/autonomous-app.js && node --check custom_components/autonomous_budget/frontend/autonomous-finance-card.js",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

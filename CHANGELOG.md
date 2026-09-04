@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0 — 2026-09-04
+
+- Add optional accounts, investments, assets and reports beside the existing budget planner, with independent module visibility and English/French interfaces.
+- Introduce an indexed SQLite ledger, atomic decimal transactions, optimistic concurrency and audit history; preserve legacy budgets and identifiers with a pre-migration backup.
+- Add private accounts, named Read/Edit sharing, expense subcategories, exact splits, refunds, multicurrency transfers, recurring occurrences, classification rules, journal filters and statement reconciliation with explicit reopening.
+- Add reviewable CSV/OFX/QFX/QIF imports, duplicate detection, journal/report CSV exports and validated JSON restoration without connection keys.
+- Track portfolios with currency pockets, average/FIFO acquisition costs, coupled securities/cash operations, dividends, splits and cost-preserving transfers. Add optional Yahoo/CoinGecko quotes and Frankfurter rates.
+- Add dated property valuations, ownership shares, bond coupons/maturity, loan projections with rate changes/prepayments, and actual principal/interest/fee payments.
+- Add dated-currency reports, planned-versus-actual comparisons, private dashboard cards, explicit budget balance allocations and cross-currency common-budget planning rates.
+- Add optional per-user Lunch Flow Personal API mappings, initial preview, daily/manual sync, pending operations, local-data preservation, conflicts, separate bank balances and validated opening holdings. Live bank validation still requires an authorized test connection.
+- Keep negative budget reserves, income-day expense exclusion, existing card controls and entity IDs. Native account totals are opt-in; private account data restricts linked-budget audiences and sensor publication.
+
+
 ## 0.4.1 — 2026-09-03
 
 - Exclude expenses due on a scheduled positive income date in the same budget from projected reserves, treating them as paid directly with that income.

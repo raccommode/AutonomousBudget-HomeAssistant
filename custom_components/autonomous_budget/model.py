@@ -78,7 +78,13 @@ def validate_budget(data: dict) -> dict:
         percentage = decimal(allocation.get("percentage"), "Percentage", "100")
         if percentage != percentage.quantize(Decimal("0.01")):
             raise ValidationError("Percentages allow at most 2 decimal places.")
-        normalized.append({"budget_id": text(allocation.get("budget_id"), "Budget ID"), "percentage": str(percentage)})
+        normalized_row = {"budget_id": text(allocation.get("budget_id"), "Budget ID"), "percentage": str(percentage)}
+        if allocation.get("exchange_rate") is not None:
+            fx = decimal(allocation["exchange_rate"], "Exchange rate", "1000000")
+            if fx <= 0 or fx.as_tuple().exponent < -8:
+                raise ValidationError("Exchange rate must be positive, with at most 8 decimal places.")
+            normalized_row["exchange_rate"] = str(fx)
+        normalized.append(normalized_row)
     if kind == "personal" and normalized:
         raise ValidationError("Only shared budgets can have an allocation.")
     return {

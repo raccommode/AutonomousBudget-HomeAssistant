@@ -4,7 +4,7 @@
 
 **Your money, on your schedule. Right inside Home Assistant.**
 
-Create budgets, spread recurring commitments across paydays, and see what's left after planned reserves.
+Plan budgets, reconcile accounts, track investments and see your net worth — together or independently.
 
 [![CI](https://github.com/raccommode/AutonomousBudget-HomeAssistant/actions/workflows/ci.yml/badge.svg)](https://github.com/raccommode/AutonomousBudget-HomeAssistant/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/raccommode/AutonomousBudget-HomeAssistant)](https://github.com/raccommode/AutonomousBudget-HomeAssistant/releases)
@@ -18,7 +18,17 @@ Create budgets, spread recurring commitments across paydays, and see what's left
 
 ![Autonomous Budget running inside Home Assistant](docs/screenshot-desktop.png)
 
-## A clear home for your finances
+## New in 1.0: accounts, investments and wealth
+
+Use **budgets alone**, **accounts and wealth alone**, or connect them. Private account journals, custom expense categories, splits, reconciliation, CSV/OFX/QFX/QIF imports, multicurrency reports, portfolios, property and loan schedules now live beside the existing planner. Optional Lunch Flow synchronization, Yahoo/CoinGecko quotes and Frankfurter exchange rates can be enabled independently.
+
+Open **Overview, Budgets, Accounts, Investments, Assets, Reports or Finance settings** in the sidebar panel. Modules can be hidden without deleting their data. No budget or payday is required for accounts.
+
+**[Read the accounts and wealth guide →](docs/FINANCE.md)** — setup, import formats, investment operations, privacy, dashboard cards, backup/restore and Lunch Flow validation status.
+
+![Private account journal](docs/screenshot-accounts.png)
+
+## The budget planner
 
 - **Multiple budgets.** Give each budget a name and currency: everyday life, a project, or a future plan.
 - **Shared budgets.** Split common expenses by percentage between personal budgets. Each person gets an automatic mandatory contribution on their own pay schedule, kept in sync with the shared budget.
@@ -28,9 +38,9 @@ Create budgets, spread recurring commitments across paydays, and see what's left
 - **Recurring commitments.** Add Netflix, rent, a paycheck, or a savings contribution with its amount, currency, renewal date, and frequency. One-time entries, end dates, and pausing are supported too.
 - **A plan for each payday.** Compare income and expenses on the same time scale, then switch to **Due dates** to see actual scheduled cash flow. Browse previous and upcoming periods using the two arrow buttons.
 - **Progressive reserves.** See the projected amount set aside for each recurring expense, its next renewal, and completed / remaining pay periods.
-- **Optional available balance.** Enter an account balance and credit owed per budget to estimate what remains after projected reserves. Balances are manual and can be left empty.
+- **Optional available balance.** Enter an account balance and credit owed per budget to estimate what remains after projected reserves. Balances can be manual, left empty, or supplied by explicit account allocations.
 - **Home Assistant dashboards.** A bundled visual card with an optional common-budget amount and 14 independent display controls, plus eleven native monetary sensors per budget. No separate card download or manual resource registration.
-- **Local storage.** Your budgets stay in Home Assistant. No account, cloud service, bank connection, telemetry, or runtime CDN dependency.
+- **Local storage.** Your budgets stay in Home Assistant. No cloud account or bank connection is required. External data providers are optional; there is no telemetry or runtime CDN dependency.
 - **English and French.** The panel, forms, dashboard card, messages, and sensor names follow your Home Assistant language. Your own budget and entry names are never translated.
 - **Export.** Download your budget definitions as a readable JSON file.
 
@@ -44,8 +54,8 @@ Requires **Home Assistant 2026.8.0 or newer** and a working [HACS installation](
 2. Find **Autonomous Budget** in HACS and download it.
 3. **Restart Home Assistant.**
 4. Click **Add integration** above, or go to **Settings → Devices & services → Add integration → Autonomous Budget**.
-5. Choose your default currency and budget period. The reference date is optional and defaults to today.
-6. Open **Autonomous Budget** in the sidebar and create your first budget.
+5. Choose your default currency and starting module. The budget period and reference date are optional.
+6. Open **Autonomous Budget** in the sidebar and create a budget or account.
 
 The buttons open the appropriate screen in your own Home Assistant; you still confirm installation there. The integration is available through a **HACS custom repository**. It is not yet included in HACS's default catalog. No YAML setup is required.
 
@@ -86,7 +96,7 @@ The three category totals describe **expenses only**. Income is uncategorized. S
 1. Create a **Personal budget** for each person, using their name (for example **Alex** and **Sam**). Optionally set their own pay period and payday.
 2. Create another budget with **Budget type → Shared budget**, named **Shared household**, for example.
 3. Add the common expenses with their original amounts, categories, and renewal dates.
-4. Open **Manage allocation** and assign a percentage to each personal budget. The linked budgets must use the same currency. Individual common expenses can still use another currency with a manual exchange rate.
+4. Open **Manage allocation** and assign a percentage to each personal budget. For a target budget in another currency, enter an explicit planning exchange rate. Individual common expenses can also use another currency with a manual exchange rate.
 5. Each personal budget now contains a read-only **Automatic contribution** under **Mandatory**. Its arrow opens the shared budget where you manage expenses and percentages.
 
 ![Shared household budget with contributions on different pay schedules](docs/screenshot-shared.png)
@@ -99,7 +109,7 @@ Amounts update when expenses, percentages, exchange rates, names, or pay schedul
 
 Percentages support two decimal places and may total up to **100%**. A partial allocation shows the unallocated percentage. Set a person's share to zero to unlink it. Deleting a personal budget removes its allocation without increasing anyone else's percentage; deleting the common budget removes its automatic contributions. Allocations cannot link to another common budget. For the same period and expense total, rounding remainders are distributed deterministically so a full allocation does not create or lose a cent. Different pay frequencies can produce small annual rounding differences.
 
-With participants configured, **common reserves** advance on each participant's own paydays strictly between the previous and next bill dates, following the ALVES model. Installments through today count as projected savings; the bill's due date starts the next reserve cycle. Each personal budget also reserves its **full contribution for the current pay period** unless it is paid on a scheduled income date, with a dedicated line in Projected reserves. This amount resets from the new period’s contribution on payday, and stays tied to today when browsing past or future periods. A one-time common expense is included only during the person’s period containing that expense. The common budget separately projects savings for its own bills. An unallocated common budget uses its own pay schedule for the usual reserve estimate. These are theoretical savings, not recorded transfers; update manual account balances to reflect actual contributions.
+With participants configured, **common reserves** advance on each participant's own paydays strictly between the previous and next bill dates, following the ALVES model. Installments through today count as projected savings; the bill's due date starts the next reserve cycle. Each personal budget also reserves its **full contribution for the current pay period** unless it is paid on a scheduled income date, with a dedicated line in Projected reserves. This amount resets from the new period’s contribution on payday, and stays tied to today when browsing past or future periods. A one-time common expense is included only during the person’s period containing that expense. The common budget separately projects savings for its own bills. An unallocated common budget uses its own pay schedule for the usual reserve estimate. These are theoretical savings, not recorded transfers; record actual contributions in linked accounts, or update manual balances when using budgets alone.
 
 Shared and personal budgets both work with the existing dashboard card and eleven sensors. Exports keep allocation definitions and omit automatic contribution rows, which are regenerated from the common budget.
 
@@ -167,11 +177,11 @@ Optionally enter **Account balance** and **Credit owed** in the budget currency:
 
 Reserves are negative deductions in the panel, card, and native sensor (for example **−CAD 120.00**); zero stays **CAD 0.00**. With a CAD 100 account and CAD 20 credit owed, a −CAD 120 reserve gives **−CAD 40 available**. Progress, target bill amounts, and installment amounts remain positive.
 
-Zero balances and negative available amounts are preserved; account overdrafts are allowed. Credit owed must be nonnegative. Leave the account balance empty to hide the estimate. Update these manual balances yourself after transactions; no bank synchronization or transfers are performed.
+Zero balances and negative available amounts are preserved; account overdrafts are allowed. Credit owed must be nonnegative. Leave the account balance empty to hide the estimate. Update manual balances yourself when using budgets alone. In linked mode, allocated ledger balances supply these values; the journal can optionally synchronize with Lunch Flow. No external bank transfer is initiated.
 
 ### Currencies
 
-Choose a currency for each budget and each entry. When they differ, supply a manual exchange rate: **1 entry-currency unit = X budget-currency units**. For example, a USD 10 subscription with a rate of 1.35 contributes CAD 13.50 to a CAD budget. Rates are not fetched automatically.
+Choose a currency for each budget and each entry. When they differ, supply a manual exchange rate: **1 entry-currency unit = X budget-currency units**. For example, a USD 10 subscription with a rate of 1.35 contributes CAD 13.50 to a CAD budget. These planning rates remain manual. The optional account/reporting module can retrieve dated exchange rates independently.
 
 Amounts use decimal arithmetic and the supported currency's minor units, including zero-decimal JPY and three-decimal KWD. Each converted payment is rounded before aggregation. You cannot change the currency of a budget containing entries; create another budget instead. See [`CURRENCIES`](custom_components/autonomous_budget/const.py) for the supported list.
 
@@ -245,15 +255,13 @@ The integration supports **English** and **French**. It automatically follows th
 
 ## Data and access
 
-Budgets are shared across the Home Assistant household. **All authenticated Home Assistant users can view and export budgets; only administrators can create, edit, or delete them.** Dashboard visibility is not a separate financial-data permission boundary. Common-budget allocation shares amounts between budgets; it does not restrict access by person or link budgets to Home Assistant user accounts.
+Unlinked legacy budgets retain household read/export access and administrator-only editing. New accounts are private by default with named Read/Edit sharing. A linked budget inherits the intersection of its source accounts’ audiences, including common-budget relationships. Private financial cards use the viewer’s authenticated access. New account sensors are opt-in because native Home Assistant states are more widely accessible.
 
-Data is stored in `.storage/autonomous_budget` within the Home Assistant configuration directory and is included with normal Home Assistant configuration backups. Saves are serialized and durable before changes are shown; stale edits from another session are rejected rather than overwriting newer data.
-
-Removing the integration keeps its stored budgets so reinstalling can restore them. Deleting a budget in the panel removes its entries and sensors. Use a Home Assistant backup before deleting data you may need again. The JSON export is for inspection and portability; an import UI is not included in this release.
+Data lives in `.storage/autonomous_budget.sqlite`. The upgrade keeps the original store and writes a pre-migration JSON backup before migrating. Home Assistant configuration backups include the database and its audit history. Application JSON exports omit connection keys; the server administrator and server backups remain outside the application's privacy boundary. See [storage and privacy details](docs/FINANCE.md).
 
 ## Updating from an earlier version
 
-Download **0.4.1** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+Download **1.0.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
 
 This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
 
@@ -275,6 +283,6 @@ The sidebar and custom card now default to **Per pay period**. Choose **Due date
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the real Home Assistant test instance, automated checks, and architecture. The runtime uses Python and native browser modules, with no frontend build step or external runtime requirements.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the real Home Assistant test instance, automated checks, and architecture. The runtime uses Python and native browser modules, with no frontend build step. The optional Yahoo quote adapter uses the declared yfinance Python dependency.
 
 Released under the [MIT License](LICENSE). This is an independent community integration.

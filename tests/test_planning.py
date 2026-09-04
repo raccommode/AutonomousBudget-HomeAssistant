@@ -211,7 +211,7 @@ def test_optional_balances_and_currency_precision():
 
 def test_native_sensor_values_keep_legacy_cashflow_and_add_planning_metrics():
     class SnapshotStore:
-        def snapshot(self):
+        def visible_snapshot(self):
             return {"budgets": [summary([expense()], account_balance="50", credit_balance="20")]}
 
     store = SnapshotStore()

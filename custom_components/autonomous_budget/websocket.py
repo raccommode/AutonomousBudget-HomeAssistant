@@ -1,5 +1,7 @@
 """Authenticated websocket API for the sidebar and dashboard card."""
 
+import sqlite3
+
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
@@ -31,7 +33,9 @@ def websocket_subscribe(hass, connection, msg):
     @callback
     def changed():
         store = hass.data.get(DOMAIN, {}).get("store")
-        connection.send_event(msg["id"], store.snapshot(msg["offset"]) if store else {"unavailable": True})
+        connection.send_event(
+            msg["id"], store.visible_snapshot(connection.user.id, msg["offset"]) if store else {"unavailable": True}
+        )
 
     connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL_CHANGED, changed)
     connection.send_result(msg["id"])
@@ -53,10 +57,20 @@ async def websocket_mutate(hass, connection, msg):
     if (store := get_store(hass, connection, msg)) is None:
         return
     try:
+        budget_id = msg["payload"].get("budget_id")
+        if (
+            budget_id in store.finance_context["access"]
+            and connection.user.id not in store.finance_context["access"][budget_id]["readers"]
+        ):
+            raise ValidationError("Access denied.")
+        for allocation in msg["payload"].get("allocations", []):
+            audience = store.finance_context["access"].get(allocation.get("budget_id"))
+            if audience and connection.user.id not in audience["readers"]:
+                raise ValidationError("Access denied.")
         result = await store.async_mutate(msg["action"], msg["payload"], msg["revision"])
     except ValidationError as err:
         connection.send_error(msg["id"], "invalid_input", str(err))
-    except OSError:
+    except OSError, sqlite3.Error:
         connection.send_error(
             msg["id"], "save_failed", "Could not save budgets. Check available disk space and try again."
         )

@@ -31,28 +31,43 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     @callback
     def sync():
-        current = {budget["id"] for budget in store.data["budgets"]}
-        added = current - known
+        current = {budget["id"] for budget in store.visible_snapshot()["budgets"]}
+        existing = {budget["id"] for budget in store.data["budgets"]}
+        registry = er.async_get(hass)
+        registered = {
+            entity.unique_id.split("_", 1)[0]
+            for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
+            if not entity.unique_id.startswith("finance_")
+        }
+        # Retain already-published IDs as unavailable when a private account is linked.
+        # Their state and attributes contain no financial data until publication resumes.
+        active = current | (registered & existing)
+        added = active - known
         if added:
             async_add_entities([BudgetSensor(store, budget_id, metric) for budget_id in added for metric in METRICS])
         registry = er.async_get(hass)
         for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
-            if entity.unique_id.split("_", 1)[0] not in current:
+            if not entity.unique_id.startswith("finance_") and entity.unique_id.split("_", 1)[0] not in existing:
                 registry.async_remove(entity.entity_id)
         devices = dr.async_get(hass)
         for device in dr.async_entries_for_config_entry(devices, entry.entry_id):
-            if not any(domain == DOMAIN and budget_id in current for domain, budget_id in device.identifiers):
+            if device.model == "Household budget" and not any(
+                domain == DOMAIN and budget_id in existing for domain, budget_id in device.identifiers
+            ):
                 devices.async_remove_device(device.id)
         known.clear()
-        known.update(current)
+        known.update(active)
         # Device names follow budget renames while entity IDs remain stable.
-        for budget in store.data["budgets"]:
+        for budget in store.visible_snapshot()["budgets"]:
             device = devices.async_get_device(identifiers={(DOMAIN, budget["id"])})
             if device and device.name != budget["name"]:
                 devices.async_update_device(device.id, name=budget["name"])
 
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_CHANGED, sync))
     sync()
+    from .finance_sensor import setup_finance_sensors
+
+    setup_finance_sensors(hass, entry, store, async_add_entities)
 
 
 class BudgetSensor(SensorEntity):
@@ -75,7 +90,7 @@ class BudgetSensor(SensorEntity):
 
     def _refresh(self):
         self._snapshot = next(
-            (budget for budget in self.store.snapshot()["budgets"] if budget["id"] == self.budget_id), None
+            (budget for budget in self.store.visible_snapshot()["budgets"] if budget["id"] == self.budget_id), None
         )
 
     @property

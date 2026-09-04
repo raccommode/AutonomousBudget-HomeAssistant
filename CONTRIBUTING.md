@@ -39,7 +39,7 @@ npm run test:e2e
 
 The instance listens only on `127.0.0.1:8128`. The setup script onboards a disposable household, installs the integration through its real config flow, and seeds fictional budgets. It confirms the development HTTP settings after connecting successfully. It saves test credentials and tokens only under the ignored `.dev-ha` directory. Never reuse this script against a personal Home Assistant installation.
 
-Browser tests authenticate using those local tokens. They exercise the real panel, websocket API, card registration, settings, recurring entries, currency conversion, pausing, persistence, deletion, common-budget allocation, individual pay schedules, live sensor synchronization, and exports without duplicate contributions. Screenshots are written to `docs/screenshot-*.png`; only intentionally reviewed screenshots belong in a commit.
+Browser tests authenticate using those local tokens. They exercise the real panel, websocket API, card registration, settings, recurring entries, currency conversion, pausing, persistence, deletion, common-budget allocation, individual pay schedules, live sensor synchronization, and exports without duplicate contributions. Finance tests cover real journal forms, reconciliation, investments, file imports, private cards and a second Home Assistant user with share/revoke access. Python fixtures cover 100,000-row pagination, FX, FIFO/average costs, transfers, restoration and provider failures. No real bank key is required by CI. Screenshots are written to `docs/screenshot-*.png`; only intentionally reviewed screenshots belong in a commit.
 
 The test instance may install Home Assistant's standard onboarding integrations. These are part of the disposable development household, not dependencies of Autonomous Budget.
 
@@ -47,14 +47,18 @@ The test instance may install Home Assistant's standard onboarding integrations.
 
 - `model.py`: validation, decimal amounts, anchored calendar periods, recurrence, projections.
 - `planning.py`: pay-period normalization, next renewals, and projected reserve installments.
-- `store.py`: Home Assistant storage, atomic writes, revision conflict checks, snapshots.
+- `store.py`, `database.py`: atomic SQLite persistence, legacy backup/migration, revision checks and budget snapshots.
+- `finance.py`, `finance_api.py`, `finance_files.py`: journal, access control, authenticated paginated/file interfaces.
+- `investments.py`, `reports.py`: Decimal position replay, acquisition lots, loan schedules and dated-currency reports.
+- `imports.py`, `backup.py`: previewable imports, duplicate detection and validated restoration.
+- `providers.py`: optional Lunch Flow Personal API, Yahoo/CoinGecko quotes, Frankfurter FX and refresh scheduling.
 - `websocket.py`: authenticated subscriptions and administrator-only mutations.
 - `sensor.py`: eleven native monetary sensors per budget, dynamic discovery and cleanup.
 - `frontend/`: native web components for the panel and dashboard card; no build step. `i18n.js` translates UI text, while `translate="no"` protects every user-provided name.
 - `translations/`: Home Assistant setup and entity translations in English and French.
 - `tests/`: calendar, currency, storage, authorization, and browser regression coverage.
 
-All runtime files must stay under `custom_components/autonomous_budget` so HACS can install them. Avoid remote runtime dependencies and avoid including financial entry names or amounts in logs.
+All runtime files must stay under `custom_components/autonomous_budget` so HACS can install them. Keep frontend assets local, keep provider requests opt-in, and avoid including financial entry names, amounts or credentials in logs.
 
 ## Changes and releases
 

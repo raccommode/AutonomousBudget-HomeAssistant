@@ -27,28 +27,42 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         [StaticPathConfig(STATIC_PATH, str(Path(__file__).parent / "frontend"), False)]
     )
     async_register(hass)
+    from .finance_api import register
+
+    register(hass)
+    from .finance_files import FinanceFilesView
+
+    hass.http.register_view(FinanceFilesView)
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Load stored budgets and expose the sidebar, card, and sensors."""
     store = BudgetStore(hass)
+    store.start_view = entry.data.get("start_view", "budgets")
     await store.async_load(dict(entry.data))
     hass.data[DOMAIN]["store"] = store
+    from .finance_api import refresh_context
+
+    await refresh_context(hass)
+    from .providers import setup_refresh
+
+    setup_refresh(hass, entry)
     await panel_custom.async_register_panel(
         hass,
         frontend_url_path=PANEL_PATH,
         webcomponent_name="autonomous-budget-panel",
         sidebar_title=NAME,
         sidebar_icon="mdi:wallet-outline",
-        module_url=f"{STATIC_PATH}/autonomous-budget-panel.js?v={VERSION}",
+        module_url=f"{STATIC_PATH}/autonomous-app.js?v={VERSION}",
     )
     frontend.add_extra_js_url(hass, CARD_URL)
+    frontend.add_extra_js_url(hass, f"{STATIC_PATH}/autonomous-finance-card.js?v={VERSION}")
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     @callback
     def refresh(_now=None):
-        async_dispatcher_send(hass, SIGNAL_CHANGED)
+        hass.async_create_task(refresh_context(hass))
 
     # Local midnight, including DST changes, advances sensors without a restart.
     entry.async_on_unload(async_track_time_change(hass, refresh, hour=0, minute=0, second=0))
@@ -62,6 +76,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     frontend.async_remove_panel(hass, PANEL_PATH)
     frontend.remove_extra_js_url(hass, CARD_URL)
+    frontend.remove_extra_js_url(hass, f"{STATIC_PATH}/autonomous-finance-card.js?v={VERSION}")
     hass.data[DOMAIN].pop("store", None)
     async_dispatcher_send(hass, SIGNAL_CHANGED)
     return True

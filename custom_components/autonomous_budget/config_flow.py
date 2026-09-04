@@ -22,12 +22,18 @@ class AutonomousBudgetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 data = validate_settings(
-                    user_input | {"anchor": user_input.get("anchor") or dt_util.now().date().isoformat()}
+                    user_input
+                    | {
+                        "period": user_input.get("period") or "biweekly",
+                        "anchor": user_input.get("anchor") or dt_util.now().date().isoformat(),
+                    }
                 )
             except ValidationError:
                 errors["base"] = "invalid_settings"
             else:
-                return self.async_create_entry(title=NAME, data=data)
+                return self.async_create_entry(
+                    title=NAME, data=data | {"start_view": user_input.get("start_view", "budgets")}
+                )
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
@@ -37,10 +43,13 @@ class AutonomousBudgetConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             options=sorted(CURRENCIES), mode=selector.SelectSelectorMode.DROPDOWN
                         )
                     ),
-                    vol.Required("period", default="biweekly"): selector.SelectSelector(
+                    vol.Optional("period", default="biweekly"): selector.SelectSelector(
                         selector.SelectSelectorConfig(options=list(PERIODS), translation_key="period")
                     ),
                     vol.Optional("anchor"): selector.DateSelector(),
+                    vol.Optional("start_view", default="budgets"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=["budgets", "accounts"], translation_key="start_view")
+                    ),
                 }
             ),
             errors=errors,

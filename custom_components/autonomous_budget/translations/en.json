@@ -4,11 +4,12 @@
     "step": {
       "user": {
         "title": "Your money, on your schedule",
-        "description": "Choose defaults for your budgets. Each budget can optionally set its own pay period and payday. Leave the default reference date empty to use today.",
+        "description": "Choose your currency and starting view. A pay schedule is optional: accounts and investments work without a budget.",
         "data": {
           "currency": "Default currency",
-          "period": "Budget period",
-          "anchor": "Default reference date (optional)"
+          "period": "Budget period (optional)",
+          "anchor": "Default reference date (optional)",
+          "start_view": "Open on startup"
         }
       }
     },
@@ -27,6 +28,12 @@
         "biweekly": "Every two weeks",
         "monthly": "Monthly",
         "yearly": "Yearly"
+      }
+    },
+    "start_view": {
+      "options": {
+        "budgets": "Budgets",
+        "accounts": "Accounts"
       }
     }
   },

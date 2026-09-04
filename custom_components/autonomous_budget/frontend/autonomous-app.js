@@ -1,7 +1,7 @@
-import "./autonomous-budget-panel.js?v=1.0.0";
-import "./finance-panel.js?v=1.0.0";
-import { baseCSS, esc } from "./shared.js?v=1.0.0";
-import { translate } from "./i18n.js?v=1.0.0";
+import "./autonomous-budget-panel.js?v=1.0.1";
+import "./finance-panel.js?v=1.0.1";
+import { baseCSS, esc } from "./shared.js?v=1.0.1";
+import { translate } from "./i18n.js?v=1.0.1";
 class AutonomousApp extends HTMLElement {
   constructor() {
     super();

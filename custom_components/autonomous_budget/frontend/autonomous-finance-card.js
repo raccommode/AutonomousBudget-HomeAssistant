@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc } from "./shared.js?v=1.0.0";
+import { BudgetLiveElement, baseCSS, esc } from "./shared.js?v=1.0.1";
 class FinanceCard extends BudgetLiveElement {
   static getConfigElement() {
     return document.createElement("autonomous-finance-card-editor");

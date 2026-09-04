@@ -457,10 +457,24 @@ async def _provider_command(hass, actor, command, p):
         if not remote_account:
             raise ValidationError("Remote account is unavailable.")
 
+        remote_currency = remote_account.get("currency")
+        if not isinstance(remote_currency, str) or not remote_currency.strip():
+            remote_id = str(remote_account["id"])
+            if not remote_id.isdigit():
+                raise ValidationError("Invalid remote account identifier.")
+            balance_response = await request(hass, f"{base}/accounts/{remote_id}/balance", headers)
+            bank_balance = balance_response.get("balance") if isinstance(balance_response, dict) else None
+            remote_currency = bank_balance.get("currency") if isinstance(bank_balance, dict) else None
+        if not isinstance(remote_currency, str) or not remote_currency.strip():
+            raise ValidationError(
+                "Lunch Flow did not provide this account's currency. Refresh the account in Lunch Flow and try again."
+            )
+        remote_currency = remote_currency.strip().upper()
+
         def map_account():
             with connect(path) as db:
                 acc = account(db, p["account_id"], actor, True)
-                if acc["owner"] != actor or acc["currency"] != remote_account["currency"]:
+                if acc["owner"] != actor or acc["currency"] != remote_currency:
                     raise ValidationError("Use your own account in the same currency.")
                 if any(
                     m["account_id"] == acc["id"]

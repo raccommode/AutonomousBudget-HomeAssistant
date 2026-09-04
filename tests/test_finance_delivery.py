@@ -486,3 +486,54 @@ def test_import_api_pages_do_not_truncate_the_committed_file(engine):
     assert len(first["rows"]) == 100 and len(last["rows"]) == 5 and first["total"] == 205
     result = engine.mutate("alice", "import", p | {"excluded_lines": [2, 102]})
     assert result["imported"] == 203
+
+
+@pytest.mark.parametrize(
+    ("remote", "balance_response", "expected_error", "balance_requested"),
+    [
+        ({}, {"balance": {"amount": 100, "currency": "CAD"}}, None, True),
+        ({"currency": None}, {"balance": {"amount": 100, "currency": "CAD"}}, None, True),
+        ({"currency": " "}, {"balance": {"amount": 100, "currency": "cad"}}, None, True),
+        ({"currency": " cad "}, {}, None, False),
+        ({"currency": "USD"}, {}, "same currency", False),
+        ({}, {"balance": {"currency": "USD"}}, "same currency", True),
+        ({}, {"balance": {"amount": 100}}, "did not provide", True),
+        ({}, {"balance": {"currency": None}}, "did not provide", True),
+        ({}, {"balance": {"currency": ""}}, "did not provide", True),
+        ({}, {"balance": None}, "did not provide", True),
+        ({}, {}, "did not provide", True),
+    ],
+)
+async def test_lunchflow_mapping_currency_fallback(
+    engine, monkeypatch, remote, balance_response, expected_error, balance_requested
+):
+    acc = account(engine, currency="CAD")
+    connection = engine.mutate("alice", "save", {"kind": "connection", "name": "Example", "api_key": "fixture-key"})
+
+    async def executor(fn, *args):
+        return await asyncio.to_thread(fn, *args)
+
+    hass = SimpleNamespace(
+        data={"autonomous_budget": {"store": SimpleNamespace(storage=SimpleNamespace(path=engine.path))}},
+        async_add_executor_job=executor,
+    )
+    urls = []
+
+    async def request(hass, url, headers=None):
+        assert headers == {"x-api-key": "fixture-key"}
+        urls.append(url)
+        if url.endswith("/accounts"):
+            return {"accounts": [{"id": 42, "name": "Example", **remote}]}
+        assert url.endswith("/accounts/42/balance")
+        return balance_response
+
+    monkeypatch.setattr(providers, "request", request)
+    payload = {"connection_id": connection["id"], "remote_id": "42", "account_id": acc["id"]}
+    if expected_error:
+        with pytest.raises(ValidationError, match=expected_error):
+            await providers.provider_command(hass, "alice", "provider_map", payload)
+        assert not any(o["kind"] == "mapping" for o in engine.query("alice", "snapshot")["objects"])
+    else:
+        mapped = await providers.provider_command(hass, "alice", "provider_map", payload)
+        assert mapped["account_id"] == acc["id"] and mapped["initialized"] is False
+    assert any(url.endswith("/balance") for url in urls) is balance_requested

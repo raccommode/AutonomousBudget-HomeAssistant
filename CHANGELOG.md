@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 — 2026-09-04
+
+- Fix Lunch Flow account linking when the account-list response omits its currency or returns null/blank. Resolve it from the account balance before checking the local account currency.
+- Keep mismatched currencies blocked; show an actionable translated error if neither response provides a currency.
+- Replace the undefined currency label in the account picker with a translated explanation.
+- Add 11 regression cases covering missing currencies, fallback responses, normalization and mismatches.
+
 ## 1.0.0 — 2026-09-04
 
 - Add optional accounts, investments, assets and reports beside the existing budget planner, with independent module visibility and English/French interfaces.

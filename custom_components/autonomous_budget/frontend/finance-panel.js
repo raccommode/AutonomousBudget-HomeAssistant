@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.0.0";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.0.1";
 
 const names = {
   overview: "Overview",
@@ -1473,7 +1473,7 @@ export class FinancePanel extends BudgetLiveElement {
           "Lunch Flow account",
           "",
           "text",
-          data.accounts.map((a) => [String(a.id), `${a.name} (${a.currency})`]),
+          data.accounts.map((a) => [String(a.id), `${a.name} (${a.currency || this.t("Currency checked when linking")})`]),
           true,
         ) +
           this.field(

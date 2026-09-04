@@ -1,4 +1,4 @@
-import { localize, translate } from "./i18n.js?v=1.0.0";
+import { localize, translate } from "./i18n.js?v=1.0.1";
 /** Local-only shared UI primitives. No remote fonts, scripts, or trackers. */
 export const labels = {
   "": "Use default",

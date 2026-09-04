@@ -150,6 +150,8 @@ const fr = {
   "Quantity must be positive.": "La quantité doit être positive.",
   "Quote currency differs from the instrument. Check its market and currency.": "La devise du cours diffère de celle de l’instrument. Vérifiez le marché et la devise.",
   "Record no longer exists.": "Cet élément n’existe plus.",
+  "Currency checked when linking": "Devise vérifiée à la liaison",
+  "Lunch Flow did not provide this account's currency. Refresh the account in Lunch Flow and try again.": "Lunch Flow n’a pas fourni la devise de ce compte. Actualisez le compte dans Lunch Flow, puis réessayez.",
   "Remote account is unavailable.": "Le compte distant est indisponible.",
   "Reopen the reconciliation before adding a transaction in this period.": "Rouvrez le rapprochement avant d’ajouter une transaction dans cette période.",
   "Reopen the reconciliation before correcting this operation.": "Rouvrez le rapprochement avant de corriger cette opération.",

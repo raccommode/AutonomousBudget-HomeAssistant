@@ -224,8 +224,8 @@ def test_native_sensor_values_keep_legacy_cashflow_and_add_planning_metrics():
 def test_bill_on_income_date_is_excluded_without_changing_its_amount_or_expense_totals():
     bill = expense()
     income = expense(name="Salary", direction="income", amount="2000", renewal_date="2026-02-28")
-    original = summary([bill], account_balance="500", credit_balance="20")
-    result = summary([bill, income], account_balance="500", credit_balance="20")
+    original = summary([bill], period="monthly", account_balance="500", credit_balance="20")
+    result = summary([bill, income], period="monthly", account_balance="500", credit_balance="20")
     reserve = result["items"][0]["reserve"]
     assert reserve["excluded_reason"] == "income_date"
     assert reserve["payment_date"] == "2026-02-28"
@@ -234,7 +234,7 @@ def test_bill_on_income_date_is_excluded_without_changing_its_amount_or_expense_
     assert reserve["progress"] == 0
     assert result["available_balance"] == "480.00"
     assert result["totals"]["expenses"] == original["totals"]["expenses"] == "280.00"
-    assert result["plan"]["expenses"] == original["plan"]["expenses"] == "129.23"
+    assert result["plan"]["expenses"] == original["plan"]["expenses"] == "280.00"
 
 
 @pytest.mark.parametrize(
@@ -250,22 +250,67 @@ def test_bill_on_income_date_is_excluded_without_changing_its_amount_or_expense_
 )
 def test_absent_paused_zero_ended_or_different_date_income_does_not_exclude_reserve(changes):
     income = expense(**({"direction": "income", "amount": "2000", "renewal_date": "2026-02-28"} | changes))
-    result = summary([expense(), income])
-    assert result["reserves"]["amount"] == "-93.33"
+    result = summary([expense(), income], period="monthly")
+    assert result["reserves"]["amount"] == "0.00"
     assert "excluded_reason" not in result["items"][0]["reserve"]
 
 
-def test_one_time_income_and_month_end_matching_use_actual_dates_not_frequency_labels():
+def test_month_end_matching_requires_the_pay_frequency_and_actual_date():
     bill = expense()
     salary = expense(direction="income", amount="2000")
-    assert summary([bill, salary])["reserves"]["amount"] == "0.00"  # Both Jan 31 anchors clamp to Feb 28.
-    one_off = expense(direction="income", amount="50", recurrence="once", renewal_date="2026-02-28")
-    assert summary([bill, one_off])["reserves"]["amount"] == "0.00"
+    result = summary([bill, salary], period="monthly")
+    assert result["items"][0]["reserve"]["excluded_reason"] == "income_date"
     monthly_on_28 = expense(direction="income", amount="2000", renewal_date="2026-02-28")
-    budget = {"id": "home", "name": "Home", "currency": "CAD", "items": [bill, monthly_on_28]}
+    budget = {"id": "home", "name": "Home", "currency": "CAD", "period": "monthly", "items": [bill, monthly_on_28]}
     defaults = {"period": "biweekly", "anchor": "2026-01-31"}
     february = summarize(budget, defaults, date(2026, 2, 1))
-    assert february["reserves"]["amount"] == "0.00"
+    assert february["items"][0]["reserve"]["excluded_reason"] == "income_date"
     assert summarize(budget, defaults, date(2026, 2, 1), 10)["reserves"] == february["reserves"]
     march = summarize(budget, defaults, date(2026, 3, 1))
-    assert march["reserves"]["amount"] == "-93.33"  # March 28 income does not cover March 31 bill.
+    assert "excluded_reason" not in march["items"][0]["reserve"]
+
+
+@pytest.mark.parametrize("recurrence", ["daily", "weekly", "monthly", "quarterly", "yearly"])
+def test_other_frequency_bills_keep_installments_when_due_on_biweekly_salary(recurrence):
+    bill = expense(recurrence=recurrence, renewal_date="2026-02-28")
+    salary = expense(direction="income", amount="2000", recurrence="biweekly", renewal_date="2026-01-31")
+    original = summary([bill], account_balance="500")
+    result = summary([bill, salary], account_balance="500")
+    assert result["items"][0]["reserve"] == original["items"][0]["reserve"]
+    assert result["reserves"] == original["reserves"]
+    assert result["available_balance"] == original["available_balance"]
+    assert result["plan"]["expenses"] == original["plan"]["expenses"]
+
+
+def test_monthly_bill_on_biweekly_payday_retains_negative_fractional_reserve():
+    bill = expense()
+    salary = expense(direction="income", amount="2000", recurrence="biweekly", renewal_date="2026-01-31")
+    result = summary([bill, salary])
+    reserve = result["items"][0]["reserve"]
+    assert "excluded_reason" not in reserve
+    assert reserve["next_due"] == "2026-02-28"
+    assert reserve["reserved_amount"] == result["reserves"]["amount"] == "-93.33"
+    assert reserve["amount_per_paycheck"] == "93.33"
+    assert reserve["total_paychecks"] == 3
+    assert reserve["completed_paychecks"] == 1
+
+
+@pytest.mark.parametrize("income_frequency", ["once", "monthly", "weekly"])
+def test_other_frequency_income_does_not_exclude_biweekly_bill(income_frequency):
+    bill = expense(recurrence="biweekly", renewal_date="2026-02-02")
+    income = expense(direction="income", amount="2000", recurrence=income_frequency, renewal_date="2026-02-02")
+    result = summary([bill, income])
+    assert result["reserves"]["amount"] == "-280.00"
+    assert "excluded_reason" not in result["items"][0]["reserve"]
+
+
+@pytest.mark.parametrize("period", ["daily", "weekly", "biweekly", "monthly", "yearly"])
+def test_matching_pay_frequency_and_date_exclude_bill_with_budget_override(period):
+    bill = expense(recurrence=period, renewal_date="2026-02-02")
+    income = expense(direction="income", amount="2000", recurrence=period, renewal_date="2026-02-02")
+    result = summary([bill, income], period=period)
+    assert result["items"][0]["reserve"]["excluded_reason"] == "income_date"
+    assert result["reserves"]["amount"] == "0.00"
+    if period != "biweekly":
+        default = summary([bill, income])
+        assert "excluded_reason" not in default["items"][0]["reserve"]

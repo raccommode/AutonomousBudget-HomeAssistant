@@ -239,12 +239,16 @@ def summarize(
             reserve = shared_reserve(item, currency, shared_targets, settings, today)
         else:
             reserve = reserve_accrual(item, currency, period, date.fromisoformat(anchor), today)
-        if reserve:
+        if reserve and item["recurrence"] == period:
+            # Only commitments with the pay frequency can be paid directly.
+            # A coincident monthly/annual bill still needs its installments.
             # A common contribution is paid at the start of today's period;
             # ordinary reserves target the next bill. Navigation changes neither.
             payment_date = reserve.get("payment_date", reserve["next_due"])
             if payment_date not in income_dates:
-                income_dates[payment_date] = income_on_date(budget["items"], currency, date.fromisoformat(payment_date))
+                income_dates[payment_date] = income_on_date(
+                    budget["items"], currency, date.fromisoformat(payment_date), period
+                )
             if income_dates[payment_date]:
                 reserve = reserve | {
                     "reserved_amount": str(quantize(Decimal(0), currency)),

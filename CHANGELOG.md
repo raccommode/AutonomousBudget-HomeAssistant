@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2 — 2026-09-05
+
+- Restrict “Paid with income” reserve exclusions to expenses and positive income whose frequencies both match the budget’s effective pay period and whose payment dates coincide.
+- Keep monthly, quarterly, annual and other differently scheduled bills in their normal fractional reserves even when they happen to fall on payday. One-time income no longer excludes recurring bills.
+- Apply the rule consistently to projected reserves, available balances, cards and native sensors, preserving matching automatic common contributions and per-budget pay-period overrides.
+- Add frequency/date regression coverage and a real Home Assistant check that changing a biweekly bill to monthly restores its installments and sensor reserve.
+
 ## 1.0.1 — 2026-09-04
 
 - Fix Lunch Flow account linking when the account-list response omits its currency or returns null/blank. Resolve it from the account balance before checking the local account currency.

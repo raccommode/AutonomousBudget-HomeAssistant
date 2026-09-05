@@ -511,10 +511,10 @@ test('income-day expenses and common contributions stay visible but leave reserv
     ids.push(common);
     const base = {direction:'expense', category:'mandatory', currency:'CAD', recurrence:'biweekly', renewal_date:today};
     await mutate('item_create', {...base, budget_id:common, name:'Common bill', amount:'100'});
-    await mutate('item_create', {...base, budget_id:personal, name:'Direct debit', amount:'180', renewal_date:shifted(1)});
+    const debit = (await mutate('item_create', {...base, budget_id:personal, name:'Direct debit', amount:'180', renewal_date:shifted(1)})).id;
     await mutate('item_create', {...base, budget_id:personal, name:'Other bill', amount:'80', renewal_date:shifted(2)});
     const salary = (await mutate('item_create', {...base, budget_id:personal, name:'Salary', amount:'1000', direction:'income'})).id;
-    const bonus = (await mutate('item_create', {...base, budget_id:personal, name:'Bonus', amount:'50', direction:'income', recurrence:'once', renewal_date:shifted(1)})).id;
+    const bonus = (await mutate('item_create', {...base, budget_id:personal, name:'Bonus', amount:'50', direction:'income', recurrence:'biweekly', renewal_date:shifted(1)})).id;
     await panel.locator(`.budget-tab[data-id="${personal}"]`).click();
     await expect(panel.locator('.reserve-total')).toHaveText('-CAD 80.00');
     await expect(panel.locator('.available-summary strong')).toHaveText('CAD 400.00');
@@ -545,7 +545,16 @@ test('income-day expenses and common contributions stay visible but leave reserv
     await page.reload();
     await panel.locator(`.budget-tab[data-id="${personal}"]`).click();
     await expect(panel.locator('.reserve-total')).toHaveText('-CAD 80.00');
-    await mutate('item_update', {...base, budget_id:personal, item_id:bonus, name:'Bonus', amount:'50', direction:'income', recurrence:'once', renewal_date:shifted(1), active:false});
+    // A monthly bill on this exact income date must retain its installments.
+    await mutate('item_update', {...base, budget_id:personal, item_id:debit, name:'Direct debit', amount:'180', recurrence:'monthly', renewal_date:shifted(1)});
+    await expect(direct).not.toHaveClass(/excluded/);
+    await expect(direct).not.toContainText('Paid with income');
+    await expect(direct).toContainText('CAD 60.00');
+    await expect(panel.locator('.reserve-total')).toHaveText('-CAD 260.00');
+    await expect.poll(() => panel.evaluate((p, id) => Object.values(p.hass.states).find(s => s.attributes.budget_id === id && s.attributes.metric === 'reserved')?.state, personal)).toBe('-260.00');
+    await mutate('item_update', {...base, budget_id:personal, item_id:debit, name:'Direct debit', amount:'180', renewal_date:shifted(1)});
+    await expect(direct).toHaveClass(/excluded/);
+    await mutate('item_update', {...base, budget_id:personal, item_id:bonus, name:'Bonus', amount:'50', direction:'income', recurrence:'biweekly', renewal_date:shifted(1), active:false});
     await expect(panel.locator('.reserve-total')).toHaveText('-CAD 260.00');
     await expect(direct).not.toHaveClass(/excluded/);
     await mutate('item_update', {...base, budget_id:personal, item_id:salary, name:'Salary', amount:'1000', direction:'income', active:false});

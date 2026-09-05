@@ -87,7 +87,7 @@ Charts, CSV exports and **Print / PDF** are included. Use your browser's print d
 
 An administrator can use **Finance settings → Link an account** to assign an explicit percentage of a cash or credit account to a budget. An account's allocations across budgets must total at most 100%; a budget can receive several accounts. Only the account owner may authorize the link. Investment accounts, cash pockets inside a portfolio, and property do not automatically become spendable budget money.
 
-In a linked budget, allocated ledger cash and credit debt replace the manual balance fields for the available-after-reserves estimate. They are converted into the budget currency. The actual forecast, negative reserves, and exclusion of expenses on positive income dates remain unchanged.
+In a linked budget, allocated ledger cash and credit debt replace the manual balance fields for the available-after-reserves estimate. They are converted into the budget currency. Forecast amounts and negative reserves are preserved. An expense is excluded from projected reserves only when its frequency and the matching positive income’s frequency both equal the budget’s pay period, with a payment on the same date. Bills with other frequencies retain their installments even when they fall on payday.
 
 Balance percentages do **not** split transactions. Assign each transaction or split explicitly to a linked budget and, optionally, a planned entry. **Planned versus actual** compares scheduled payments within the report period to recorded flows. Actual operations never rewrite forecasts or projected reserves.
 

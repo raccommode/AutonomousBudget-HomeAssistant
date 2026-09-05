@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc, icon, labels } from "./shared.js?v=1.0.1";
+import { BudgetLiveElement, baseCSS, esc, icon, labels } from "./shared.js?v=1.0.2";
 
 // One definition keeps YAML defaults and the visual editor in sync.
 const displayOptions = {

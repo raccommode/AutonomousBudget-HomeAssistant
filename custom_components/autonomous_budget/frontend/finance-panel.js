@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.0.1";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.0.2";
 
 const names = {
   overview: "Overview",

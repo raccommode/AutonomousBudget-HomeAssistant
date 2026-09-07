@@ -899,6 +899,8 @@ class Finance:
                 "bank_holdings_date",
                 "bank_positions_enabled",
                 "bank_balance_status",
+                "bank_balance_reason",
+                "bank_holdings_reason",
                 "bank_holdings_status",
                 "bank_sync_error",
                 "bank_amount",

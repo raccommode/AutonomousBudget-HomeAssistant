@@ -1,6 +1,6 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.3.0";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.4.0";
 
-import { pageHeader, workspaceCSS } from "./ui.js?v=1.3.0";
+import { pageHeader, workspaceCSS } from "./ui.js?v=1.4.0";
 
 const names = {
   overview: "Overview",
@@ -217,8 +217,9 @@ export class FinancePanel extends BudgetLiveElement {
       if (["overview", "reports", "assets"].includes(page))
         data.report = await this.api("reports", {
           currency: this.unit,
-          ...this.reportFilters,
+          ...(page === "overview" ? {} : this.reportFilters),
           summary: page === "overview",
+          overview: page === "overview",
         });
       if (page === "investments" && selected) {
         data.positions = await this.api("portfolio", { account_id: selected });
@@ -329,8 +330,7 @@ export class FinancePanel extends BudgetLiveElement {
     const main = this.shadowRoot.querySelector("main");
     if (!main) return;
     const descriptions = {
-      overview:
-        "Your financial picture, from everyday accounts to long-term plans.",
+      overview: "Accounts and budgets assigned to you, in one place.",
       accounts: "Balances, transactions and bank connections, in one place.",
       investments: "Follow your positions, cash and investment activity.",
       assets: "Track the value of your property, assets and loans.",
@@ -376,10 +376,12 @@ export class FinancePanel extends BudgetLiveElement {
   overview() {
     const r = this.report;
     if (!r) return '<p role="status">Loading…</p>';
-    const accounts = this.list("account").filter((a) => !a.archived);
+    const accounts = this.list("account").filter(
+      (a) => !a.archived && a.assigned_user_id === this.hass.user.id,
+    );
     const metric = (label, value) =>
       `<section class="box"><h2>${label}</h2><p class="metric">${this.m(value)}</p></section>`;
-    return `${!r.complete ? '<p class="notice">Incomplete valuation: add the missing exchange rates or prices.</p>' : ""}<div class="overview-grid"><section class="box overview-hero"><h2>Net worth</h2><p class="metric">${this.m(r.net_worth)}</p><p>Assets minus debts, valued in your reporting currency.</p><p class="small">${esc(r.to)} · ${esc(r.currency)}</p>${this.prefs?.modules?.reports !== false ? this.button("navigate", "Explore reports", "reports") : ""}</section><div class="overview-flow">${metric("Income", r.income)}${metric("Expenses", r.expenses)}${metric("Cash flow", r.cashflow)}${metric("Debt", r.debt)}</div></div><p class="muted small" style="margin:12px 0 22px"><span>Reporting period</span> · ${esc(r.from)} — ${esc(r.to)}</p><div class="overview-grid"><section class="box" ${this.prefs?.modules?.accounts === false ? "hidden" : ""}><div class="section-heading"><h2>Accounts</h2>${this.button("navigate", "View all", "accounts")}</div><div class="overview-list">${
+    return `${!r.complete ? '<p class="notice">Incomplete overview: a bank balance, exchange rate or investment value is unavailable.</p>' : ""}<p class="muted small">Latest bank balances for connected accounts; ledger balances for manual accounts.</p><div class="overview-grid"><section class="box overview-hero"><h2>Net worth</h2><p class="metric">${this.m(r.net_worth)}</p><p>Your account balances and investments, minus debts.</p><p class="small">${esc(r.to)} · ${esc(r.currency)}</p>${this.prefs?.modules?.reports !== false ? this.button("navigate", "Explore reports", "reports") : ""}</section><div class="overview-flow">${metric("Income", r.income)}${metric("Expenses", r.expenses)}${metric("Cash flow", r.cashflow)}${metric("Debt", r.debt)}</div></div><p class="muted small" style="margin:12px 0 22px"><span>Income and expenses from the journal</span> · <span>Reporting period</span> · ${esc(r.from)} — ${esc(r.to)}</p><div class="overview-grid"><section class="box" ${this.prefs?.modules?.accounts === false ? "hidden" : ""}><div class="section-heading"><h2>Accounts</h2>${this.button("navigate", "View all", "accounts")}</div><div class="overview-list">${
       accounts
         .slice(0, 6)
         .map(
@@ -387,16 +389,17 @@ export class FinancePanel extends BudgetLiveElement {
             `<button class="overview-row" data-action="overview-account" data-id="${esc(a.id)}"><span><strong translate="no">${esc(a.name)}</strong><small>${this.t(names[a.type])} · ${this.t(this.list("mapping").some((m) => m.account_id === a.id) ? "Bank balance" : "Ledger balance")}</small></span><span class="value">${this.m(this.list("mapping").some((m) => m.account_id === a.id) ? a.bank_amount : a.balance, a.currency)}</span></button>`,
         )
         .join("") ||
-      '<p class="empty">No accounts yet. Add an account when you are ready.</p>'
-    }</div></section><section class="box" ${this.prefs?.modules?.budgets === false ? "hidden" : ""}><div class="section-heading"><h2>Budgets</h2>${this.button("navigate", "View all", "budgets")}</div><p class="muted">Give your income a plan, then follow your reserves.</p><div class="overview-list">${
+      '<p class="empty">No accounts assigned to you. Assign a Home Assistant user in Edit account.</p>'
+    }</div></section><section class="box" ${this.prefs?.modules?.budgets === false ? "hidden" : ""}><div class="section-heading"><h2>Budgets</h2>${this.button("navigate", "View all", "budgets")}</div><p class="muted">Your assigned budgets. Shared contributions remain included in their calculations.</p><div class="overview-list">${
       (this.budgets || [])
+        .filter((b) => b.assigned_user_id === this.hass.user.id)
         .slice(0, 6)
         .map(
           (b) =>
             `<button class="overview-row" data-action="overview-budget" data-id="${esc(b.id)}"><span><strong translate="no">${esc(b.name)}</strong><small>Open budget planning</small></span><ha-icon icon="mdi:chevron-right" aria-hidden="true"></ha-icon></button>`,
         )
         .join("") ||
-      '<p class="empty">Budgets are optional. Start one whenever you need a plan.</p>'
+      '<p class="empty">No budgets assigned to you. Assign a Home Assistant user in Edit budget.</p>'
     }</div></section></div>`;
   }
   refreshAccountList() {
@@ -436,11 +439,29 @@ export class FinancePanel extends BudgetLiveElement {
     if (!mapping) return "";
     return `<div class="mapping-row" data-mapping-id="${esc(mapping.id)}"><small translate="no">${esc(this.obj(mapping.connection_id)?.name || "Lunch Flow")}</small><div class="toolbar"><span translate="no">${esc(mapping.remote_name || mapping.remote_id)}</span><span>is linked to</span><strong translate="no">${esc(acc.name)}</strong>${this.button("account-sync", "Synchronize", mapping.id)}${!mapping.initialized ? this.button("account-preview", "Review transactions", mapping.id) : ""}</div></div>`;
   }
+  providerReason(reason) {
+    const messages = {
+      network: "Lunch Flow could not be reached. Try synchronizing again.",
+      invalid_response:
+        "Lunch Flow returned incomplete or invalid data for this account.",
+      not_found:
+        "This account or data is no longer available from Lunch Flow. Check the connection and account access in Lunch Flow.",
+      unsupported:
+        "The bank provider does not support this data for this account.",
+      rate_limited:
+        "Lunch Flow is limiting requests. Wait before synchronizing again.",
+      provider_error:
+        "Lunch Flow could not retrieve this data from the bank. Check the bank connection in Lunch Flow and retry.",
+      currency_mismatch:
+        "The bank balance currency differs from the local account currency. Check the account mapping.",
+    };
+    return messages[reason] ? this.t(messages[reason]) : "";
+  }
   accountBalance(acc) {
     const linked = this.list("mapping").some((m) => m.account_id === acc.id);
     if (!linked)
       return `<p class="metric">${this.m(acc.balance, acc.currency)}</p>`;
-    return `<span class="muted">Bank balance</span><p class="metric">${this.m(acc.bank_amount, acc.currency)}</p><p class="muted"><span>Ledger balance</span>: ${this.m(acc.balance, acc.currency)}</p>${acc.bank_checked ? `<small><span>Last synchronization</span> ${esc(this.dateTime(acc.bank_checked))}</small>` : ""}${acc.bank_balance_status === "unavailable" ? '<p class="error">Bank balance unavailable. The last received value is retained.</p>' : ""}${acc.bank_holdings_status === "unavailable" ? '<p class="muted">Investment holdings unavailable. The account remains connected.</p>' : ""}${acc.bank_sync_error ? '<p class="error">Transactions could not be retrieved. Try synchronizing again.</p>' : ""}`;
+    return `<span class="muted">Bank balance</span><p class="metric">${this.m(acc.bank_amount, acc.currency)}</p><p class="muted"><span>Ledger balance</span>: ${this.m(acc.balance, acc.currency)}</p>${acc.bank_checked ? `<small><span>Last synchronization</span> ${esc(this.dateTime(acc.bank_checked))}</small>` : ""}${acc.bank_balance_status === "unavailable" ? `<p class="error"><span>Bank balance unavailable. The last received value is retained.</span> ${esc(this.providerReason(acc.bank_balance_reason))}</p>` : ""}${acc.bank_holdings_status === "unavailable" ? `<p class="muted"><span>Investment holdings unavailable. The account remains connected.</span> ${esc(this.providerReason(acc.bank_holdings_reason))}</p>` : ""}${acc.bank_sync_error ? '<p class="error">Transactions could not be retrieved. Try synchronizing again.</p>' : ""}`;
   }
   accountConnectionPicker() {
     const form = this.shadowRoot.querySelector("dialog form");
@@ -517,7 +538,7 @@ export class FinancePanel extends BudgetLiveElement {
       (a) => a.type === "investment" && !a.portfolio_id,
     );
     const acc = this.obj(this.selected);
-    return `<div class="toolbar">${this.button("instrument-new", "Add instrument")}${this.button("instrument-search", "Search markets")}${this.button("quote", "Set or refresh a quote")}</div><div class="toolbar portfolio-tabs">${portfolios.map((a) => `<button type="button" data-action="portfolio-open" data-id="${esc(a.id)}" class="${a.id === this.selected ? "active" : ""}" aria-pressed="${a.id === this.selected}" translate="no">${esc(a.name)}</button>`).join("")}</div>${acc ? `<section class="box"><h2 translate="no">${esc(acc.name)}</h2>${this.positions?.source === "Lunch Flow" ? `<p class="notice"><span>Positions synchronized from Lunch Flow</span> · ${esc(this.positions.as_of)}<br><span>Bank quantities and values are shown automatically. Missing acquisition costs remain unknown.</span></p>` : ""}<p><span>Cash balance</span> ${this.m(acc.balance, acc.currency)}</p><div class="toolbar">${this.button("trade", "Record an operation", acc.id, true)}${this.button("pocket", "Add currency pocket", acc.id)}${acc.bank_holdings?.holdings?.length ? this.button("holdings", "Bank holdings", acc.id) : ""}</div><div class="table"><table><thead><tr><th>Instrument</th><th>Quantity</th><th>Cost</th><th>Market value</th><th>Unrealized gain</th><th>Realized gain</th><th>Quote date</th><th>Price source</th></tr></thead><tbody>${(this.positions?.positions || []).map((p) => `<tr><td translate="no">${esc(p.instrument.name)}</td><td class="numbers">${esc(p.quantity)}</td><td class="numbers">${this.m(p.cost, p.instrument.currency)}</td><td class="numbers">${this.m(p.value, p.instrument.currency)}</td><td class="numbers">${this.m(p.unrealized, p.instrument.currency)}</td><td class="numbers">${this.m(p.realized, p.instrument.currency)}</td><td>${esc(p.quote?.date || "—")}</td><td>${esc(p.quote?.source || "—")}</td></tr>`).join("")}</tbody></table></div></section>` : '<section class="box empty">Choose a portfolio or create your first investment account.</section>'}${acc ? `<section class="box table"><h2>Investment history</h2><table><thead><tr><th>Date</th><th>Instrument</th><th>Operation</th><th>Quantity</th><th>Price</th><th></th></tr></thead><tbody>${(this.trades || []).map((t) => `<tr><td>${esc(t.date)}</td><td translate="no">${esc(this.obj(t.instrument_id)?.name)}</td><td>${esc(names[t.action] || t.action)}</td><td>${esc(t.quantity)}</td><td>${esc(t.price)}</td><td>${this.button("trade-edit", "Edit", t.id)}</td></tr>`).join("")}</tbody></table><div class="toolbar">${this.tradeOffset ? this.button("trades-previous", "Previous") : ""}${this.trades?.length === 100 ? this.button("trades-next", "Next") : ""}</div></section>` : ""}<section class="box"><h2>Instruments</h2>${this.list(
+    return `<div class="toolbar">${this.button("instrument-new", "Add instrument")}${this.button("instrument-search", "Search markets")}${this.button("quote", "Set or refresh a quote")}</div><div class="toolbar portfolio-tabs">${portfolios.map((a) => `<button type="button" data-action="portfolio-open" data-id="${esc(a.id)}" class="${a.id === this.selected ? "active" : ""}" aria-pressed="${a.id === this.selected}" translate="no">${esc(a.name)}</button>`).join("")}</div>${acc ? `<section class="box"><h2 translate="no">${esc(acc.name)}</h2>${this.positions?.source === "Lunch Flow" ? `<p class="notice"><span>Positions synchronized from Lunch Flow</span> · ${esc(this.positions.as_of)}<br><span>Bank quantities and values are shown automatically. Missing acquisition costs remain unknown.</span></p>` : ""}${this.accountBalance(acc)}${this.accountLink(acc)}<div class="toolbar">${this.button("trade", "Record an operation", acc.id, true)}${this.button("pocket", "Add currency pocket", acc.id)}${acc.bank_holdings?.holdings?.length ? this.button("holdings", "Bank holdings", acc.id) : ""}</div><div class="table"><table><thead><tr><th>Instrument</th><th>Quantity</th><th>Cost</th><th>Market value</th><th>Unrealized gain</th><th>Realized gain</th><th>Quote date</th><th>Price source</th></tr></thead><tbody>${(this.positions?.positions || []).map((p) => `<tr><td translate="no">${esc(p.instrument.name)}</td><td class="numbers">${esc(p.quantity)}</td><td class="numbers">${this.m(p.cost, p.instrument.currency)}</td><td class="numbers">${this.m(p.value, p.instrument.currency)}</td><td class="numbers">${this.m(p.unrealized, p.instrument.currency)}</td><td class="numbers">${this.m(p.realized, p.instrument.currency)}</td><td>${esc(p.quote?.date || "—")}</td><td>${esc(p.quote?.source || "—")}</td></tr>`).join("")}</tbody></table></div>${!this.positions?.positions?.length ? `<p class="empty">${this.positions?.source === "Lunch Flow" ? "Lunch Flow returned no positions for this account." : "No positions recorded in this portfolio."}</p>` : ""}</section>` : '<section class="box empty">Choose a portfolio or create your first investment account.</section>'}${acc ? `<section class="box table"><h2>Investment history</h2><table><thead><tr><th>Date</th><th>Instrument</th><th>Operation</th><th>Quantity</th><th>Price</th><th></th></tr></thead><tbody>${(this.trades || []).map((t) => `<tr><td>${esc(t.date)}</td><td translate="no">${esc(this.obj(t.instrument_id)?.name)}</td><td>${esc(names[t.action] || t.action)}</td><td>${esc(t.quantity)}</td><td>${esc(t.price)}</td><td>${this.button("trade-edit", "Edit", t.id)}</td></tr>`).join("")}</tbody></table>${!this.trades?.length ? '<p class="empty">No investment operations recorded. Bank positions do not create purchases or sales.</p>' : ""}<div class="toolbar">${this.tradeOffset ? this.button("trades-previous", "Previous") : ""}${this.trades?.length === 100 ? this.button("trades-next", "Next") : ""}</div></section>` : ""}<section class="box"><h2>Instruments</h2>${this.list(
       "instrument",
     )
       .map(
@@ -1839,7 +1860,7 @@ export class FinancePanel extends BudgetLiveElement {
       const data = await this.api("provider_preview", payload);
       this.form(
         "Preview synchronization",
-        `<div class="full">${(data.warnings || []).map((w) => `<p class="error"><span translate="no">${esc(w.name)}</span>: ${this.t(w.message)}</p>`).join("")}</div><p class="full">${data.added} <span>new transactions</span> · ${data.updated} <span>updates</span> · ${data.conflicts} <span>conflicts</span></p><div class="full table"><table>${data.rows.map((r) => `<tr><td>${r.date}</td><td translate="no">${esc(r.description)}</td><td>${esc(r.amount)}</td></tr>`).join("")}</table></div>`,
+        `<div class="full">${(data.warnings || []).map((w) => `<p class="error"><span translate="no">${esc(w.name)}</span>: ${esc(this.t(w.message))} ${esc(this.providerReason(w.reason))}</p>`).join("")}</div><p class="full">${data.added} <span>new transactions</span> · ${data.updated} <span>updates</span> · ${data.conflicts} <span>conflicts</span></p><div class="full table"><table>${data.rows.map((r) => `<tr><td>${r.date}</td><td translate="no">${esc(r.description)}</td><td>${esc(r.amount)}</td></tr>`).join("")}</table></div>`,
         () =>
           this.api("provider_sync", {
             ...payload,

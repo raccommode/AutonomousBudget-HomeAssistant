@@ -169,7 +169,7 @@ async def test_auto_holdings_in_portfolio_and_wealth_without_fake_trades(engine,
 
 async def test_broker_values_do_not_double_count_journal_positions(engine, bank):
     _, state, command = bank
-    acc = account(engine, type="investment", opening_balance="100")
+    acc = account(engine, type="investment", opening_balance="100", assigned_user_id="alice")
     sec = engine.mutate("alice", "save", {"kind": "instrument", "name": "Example", "currency": "CAD", "symbol": "EX"})
     engine.mutate(
         "alice",
@@ -190,6 +190,8 @@ async def test_broker_values_do_not_double_count_journal_positions(engine, bank)
     }
     await command("provider_map", account_id=acc["id"], remote_id="42")
     assert engine.query("alice", "reports", {"currency": "CAD"})["net_worth"] == "200.00"
+    assert engine.query("alice", "reports", {"overview": True})["net_worth"] == "900.00"
+    assert engine.query("bob", "reports", {"overview": True})["net_worth"] == "0.00"
     assert len(engine.query("alice", "trades", {"account_id": acc["id"]})) == 1
     assert len(engine.query("alice", "portfolio", {"account_id": acc["id"]})["ledger_positions"]) == 1
 
@@ -367,7 +369,7 @@ async def test_optional_provider_failure_does_not_block_account_link(monkeypatch
     monkeypatch.setattr(providers, "async_get_clientsession", lambda hass: session)
     assert await providers.request(
         SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/holdings", optional=True
-    ) == {"unavailable": True}
+    ) == {"unavailable": True, "reason": {404: "not_found", 429: "rate_limited"}.get(status, "provider_error")}
 
 
 @pytest.mark.parametrize("status", [401, 403])
@@ -405,7 +407,7 @@ async def test_optional_snapshot_timeout_is_non_blocking(monkeypatch):
     )
     assert await providers.request(
         SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/balance", optional=True
-    ) == {"unavailable": True}
+    ) == {"unavailable": True, "reason": "network"}
     with pytest.raises(TimeoutError):
         await providers.request(SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/transactions")
 
@@ -449,3 +451,40 @@ async def test_zero_bank_balance_is_not_replaced_by_the_ledger(engine, bank):
     await command("provider_map", account_id=acc["id"], remote_id="42")
     summary = engine.query("alice", "account_summary", {"account_id": acc["id"]})
     assert summary["balance"] == "100.00" and summary["bank_amount"] == "0.00" and summary["bank_linked"]
+
+
+async def test_optional_snapshot_warnings_are_previewed_and_clear_after_recovery(engine, bank):
+    connection, state, command = bank
+    acc = account(engine, type="investment", assigned_user_id="alice")
+    await command("provider_map", account_id=acc["id"], remote_id="42")
+    original = engine.query("alice", "account_summary", {"account_id": acc["id"]})
+    state["balance"] = {"unavailable": True, "reason": "provider_error"}
+    state["holdings"] = {"unavailable": True, "reason": "unsupported"}
+    preview = await command("provider_preview")
+    assert {w["reason"] for w in preview["warnings"]} == {"provider_error", "unsupported"}
+    assert engine.query("alice", "account_summary", {"account_id": acc["id"]}) == original
+    result = await command("provider_sync", confirm_initial=True)
+    assert len(result["warnings"]) == 2
+    summary = engine.query("alice", "account_summary", {"account_id": acc["id"]})
+    assert (
+        summary["bank_amount"] == "800.00"
+        and next(o for o in engine.query("alice", "snapshot")["objects"] if o["id"] == acc["id"])["bank_balance_reason"]
+        == "provider_error"
+    )
+    with connect(engine.path) as db:
+        assert get(db, connection["id"])["status"] == "partial"
+    personal = engine.query("alice", "reports", {"overview": True})
+    assert not personal["complete"]
+    assert {m["type"] for m in personal["missing"]} >= {"bank_balance", "holdings"}
+    state["balance"] = {"balance": {"amount": 900, "currency": "CAD"}}
+    state["holdings"] = {"holdings": []}
+    result = await command("provider_sync")
+    assert result["warnings"] == []
+    summary = engine.query("alice", "account_summary", {"account_id": acc["id"]})
+    assert summary["bank_amount"] == "900.00"
+    snapshot = next(o for o in engine.query("alice", "snapshot")["objects"] if o["id"] == acc["id"])
+    assert snapshot["bank_balance_reason"] is None and snapshot["bank_holdings_reason"] is None
+    with connect(engine.path) as db:
+        assert get(db, connection["id"])["status"] == "ok"
+    assert engine.query("alice", "portfolio", {"account_id": acc["id"]})["positions"] == []
+    assert engine.query("alice", "reports", {"overview": True})["complete"]

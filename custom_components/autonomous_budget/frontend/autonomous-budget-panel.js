@@ -1,6 +1,6 @@
-import { BudgetLiveElement, baseCSS, esc, icon, labels, options } from "./shared.js?v=1.3.0";
+import { BudgetLiveElement, baseCSS, esc, icon, labels, options } from "./shared.js?v=1.4.0";
 
-import { pageHeader, workspaceCSS } from "./ui.js?v=1.3.0";
+import { pageHeader, workspaceCSS } from "./ui.js?v=1.4.0";
 
 const css = `
 @container(max-width:1100px){.hide-medium{display:none}}
@@ -38,7 +38,7 @@ class AutonomousBudgetPanel extends BudgetLiveElement {
     view.innerHTML = `<div class="shell">
       ${pageHeader("Budgets", "Plan your income, expenses and reserves for each pay period.", `<button class="quiet" data-action="export" aria-label="Export budgets">${icon("download")}<span>Export</span></button>${this.canEdit ? `<button class="quiet" data-action="settings" aria-label="Settings">${icon("settings")}<span>Settings</span></button>` : ""}${this.canCreate ? `<button class="primary" data-action="new-budget">${icon("plus")}New budget</button>` : ""}`)}
       ${budget ? `${this.renderBudgets(budget)}${this.renderBudget(budget)}` : `<section class="box no-budgets empty">${icon("wallet")}<h2>A fresh start for your finances</h2><p class="muted">Create your first budget, then add your income, everyday bills, and future plans.</p>${this.canCreate ? '<button class="primary" data-action="new-budget">Create your first budget</button>' : '<p class="muted">Ask a Home Assistant administrator to create a budget.</p>'}</section>`}
-      <div class="footer row between"><span>Stored in Home Assistant</span><span>Autonomous Budget · 1.3.0</span></div>
+      <div class="footer row between"><span>Stored in Home Assistant</span><span>Autonomous Budget · 1.4.0</span></div>
     </div>`;
   }
   renderBudgets(budget) {
@@ -162,9 +162,15 @@ class AutonomousBudgetPanel extends BudgetLiveElement {
     const first = form.querySelector("input[data-budget-id]");
     if (first) first.setCustomValidity(total > 100 ? this.t("The total allocation cannot exceed 100%.") : "");
   }
-  openBudget(edit) {
+  async openBudget(edit) {
+    let users;
+    try { users = await this.hass.callWS({type:"autonomous_budget/finance", command:"users"}); }
+    catch (error) { this.notify(this.t(error.message)); return; }
+    const assignment = edit ? this.budget.assigned_user_id || "" : "";
+    const userField = `<label class="field full"><span>Assigned Home Assistant user (optional)</span><select name="assigned_user_id" aria-label="Assigned Home Assistant user (optional)"><option value="">${this.t("Unassigned")}</option>${users.map(user=>`<option value="${esc(user.id)}" ${user.id===assignment?"selected":""} translate="no">${esc(user.name)}</option>`).join("")}${assignment && !users.some(user=>user.id===assignment) ? `<option value="${esc(assignment)}" selected>${this.t("Unavailable user")}</option>` : ""}</select></label><p class="full muted small">Assignment controls whose overview shows this budget. Everyone can still view and edit it in Budgets.</p>`;
+
     this.editing = edit ? this.budget : null;
-    this.openDialog(edit ? "Edit budget" : "Create a budget", this.form(this.field("Budget name", "name", edit ? this.budget.name : "", "text", true, 'required maxlength="100" placeholder="e.g. Everyday life"') + this.selectField("Budget type", "kind", ["personal", "shared"], edit ? this.budget.kind : "personal") + this.selectField("Currency", "currency", Object.keys(this.data.currencies).sort(), edit ? this.budget.currency : this.data.settings.currency, edit && this.budget.items.length ? "disabled" : "") + this.selectField("Pay period (optional)", "period", ["", "daily", "weekly", "biweekly", "monthly", "yearly"], edit ? this.budget.period || "" : "") + this.field("Payday / reference date (optional)", "anchor", edit ? this.budget.anchor || "" : "", "date", true, 'min="1900-01-01" max="2200-12-31"') + `<p class="muted small" style="grid-column:1/-1">Leave these fields blank to use the defaults: ${labels[this.data.settings.period]}, aligned to ${this.dateLabel(this.data.settings.anchor, true)}. A pay schedule is optional.</p>` + this.field("Account balance (optional)", "account_balance", edit ? this.budget.account_balance ?? "" : "", "number", false, 'min="-1000000000" max="1000000000" step="any" inputmode="decimal"') + this.field("Credit owed (optional)", "credit_balance", edit ? this.budget.credit_balance ?? "" : "", "number", false, 'min="0" max="1000000000" step="any" inputmode="decimal"') + '<p class="muted small" style="grid-column:1/-1">Enter balances manually in the budget currency. Available after reserves = account balance − credit owed + projected reserves (negative). Leave account balance blank to hide this estimate.</p>', edit ? "Save changes" : "Create budget", edit ? `<button type="button" class="quiet danger icon" data-action="delete-budget" aria-label="Delete budget">${icon("trash")}</button>` : ""), "budget");
+    this.openDialog(edit ? "Edit budget" : "Create a budget", this.form(this.field("Budget name", "name", edit ? this.budget.name : "", "text", true, 'required maxlength="100" placeholder="e.g. Everyday life"') + userField + this.selectField("Budget type", "kind", ["personal", "shared"], edit ? this.budget.kind : "personal") + this.selectField("Currency", "currency", Object.keys(this.data.currencies).sort(), edit ? this.budget.currency : this.data.settings.currency, edit && this.budget.items.length ? "disabled" : "") + this.selectField("Pay period (optional)", "period", ["", "daily", "weekly", "biweekly", "monthly", "yearly"], edit ? this.budget.period || "" : "") + this.field("Payday / reference date (optional)", "anchor", edit ? this.budget.anchor || "" : "", "date", true, 'min="1900-01-01" max="2200-12-31"') + `<p class="muted small" style="grid-column:1/-1">Leave these fields blank to use the defaults: ${labels[this.data.settings.period]}, aligned to ${this.dateLabel(this.data.settings.anchor, true)}. A pay schedule is optional.</p>` + this.field("Account balance (optional)", "account_balance", edit ? this.budget.account_balance ?? "" : "", "number", false, 'min="-1000000000" max="1000000000" step="any" inputmode="decimal"') + this.field("Credit owed (optional)", "credit_balance", edit ? this.budget.credit_balance ?? "" : "", "number", false, 'min="0" max="1000000000" step="any" inputmode="decimal"') + '<p class="muted small" style="grid-column:1/-1">Enter balances manually in the budget currency. Available after reserves = account balance − credit owed + projected reserves (negative). Leave account balance blank to hide this estimate.</p>', edit ? "Save changes" : "Create budget", edit ? `<button type="button" class="quiet danger icon" data-action="delete-budget" aria-label="Delete budget">${icon("trash")}</button>` : ""), "budget");
     if (edit && this.budget.linked_accounts) {
       const form=this.shadowRoot.querySelector("dialog form");
       form.elements.account_balance.disabled=true;
@@ -249,7 +255,7 @@ class AutonomousBudgetPanel extends BudgetLiveElement {
     this._toastTimer = setTimeout(() => { target.innerHTML = ""; }, 3500);
   }
   exportData() {
-    const data = { format: "autonomous_budget", version: 1, exported_at: new Date().toISOString(), settings: this.data.settings, budgets: this.data.budgets.map(({ id, name, currency, kind, allocations, period, anchor, account_balance, credit_balance, items }) => ({ id, name, currency, kind, allocations, period: period || null, anchor: anchor || null, account_balance: account_balance ?? null, credit_balance: credit_balance ?? "0", items: items.filter((item) => !item.shared_source_id).map(({ period_amount, planned_amount, reserve, occurrences, next_due, ...item }) => item) })) };
+    const data = { format: "autonomous_budget", version: 1, exported_at: new Date().toISOString(), settings: this.data.settings, budgets: this.data.budgets.map(({ id, name, assigned_user_id, currency, kind, allocations, period, anchor, account_balance, credit_balance, items }) => ({ id, name, assigned_user_id: assigned_user_id || null, currency, kind, allocations, period: period || null, anchor: anchor || null, account_balance: account_balance ?? null, credit_balance: credit_balance ?? "0", items: items.filter((item) => !item.shared_source_id).map(({ period_amount, planned_amount, reserve, occurrences, next_due, ...item }) => item) })) };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
     const link = document.createElement("a"); link.href = url; link.download = `autonomous-budget-${this.data.today}.json`; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);

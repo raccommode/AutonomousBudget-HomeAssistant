@@ -58,6 +58,13 @@ async def websocket_mutate(hass, connection, msg):
     try:
         if msg["action"] == "budget_create" and not connection.user.is_admin:
             raise ValidationError("A Home Assistant administrator must create budgets.")
+        if msg["action"] in ("budget_create", "budget_update"):
+            assigned = msg["payload"].get("assigned_user_id")
+            if assigned and not any(
+                user.id == assigned and user.is_active and not user.system_generated
+                for user in await hass.auth.async_get_users()
+            ):
+                raise ValidationError("Choose a valid Home Assistant user.")
         result = await store.async_mutate(msg["action"], msg["payload"], msg["revision"])
     except ValidationError as err:
         connection.send_error(msg["id"], "invalid_input", str(err))

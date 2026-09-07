@@ -151,6 +151,7 @@ async def websocket_finance(hass, connection, msg):
                 {
                     "id": b["id"],
                     "name": b["name"],
+                    "assigned_user_id": b.get("assigned_user_id"),
                     "items": [{"id": i["id"], "name": i["name"]} for i in b["items"] if not i.get("shared_source_id")],
                 }
                 for b in store.visible_snapshot(actor)["budgets"]

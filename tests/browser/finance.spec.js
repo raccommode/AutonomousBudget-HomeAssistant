@@ -359,6 +359,20 @@ test("Home Assistant members see and edit accounts while creation requires admin
         }
       }, fixture.account.id);
     expect((await read()).total).toBe(0);
+    await other.locator('nav [data-page="overview"]').click();
+    const personal = other.locator("autonomous-finance-panel");
+    await expect(
+      personal.locator('[data-action="overview-account"]'),
+    ).toHaveCount(1);
+    await expect(
+      personal.locator(
+        `[data-action="overview-account"][data-id="${fixture.account.id}"]`,
+      ),
+    ).toBeVisible();
+    await expect(personal.locator(".overview-hero .metric")).toContainText(
+      "321.00",
+    );
+
     await other.getByRole("button", { name: "Accounts", exact: true }).click();
     const memberPanel = reader.locator("autonomous-finance-panel");
     await expect(
@@ -427,6 +441,19 @@ test("Home Assistant members see and edit accounts while creation requires admin
     expect(access.updated.assigned_user_id).toBeNull();
     expect(access.denied).toEqual([true, true, true]);
     expect((await read()).total).toBe(1);
+    await other.locator('nav [data-page="overview"]').click();
+    await expect(personal.locator(".overview-hero .metric")).toContainText(
+      "0.00",
+    );
+    await expect(
+      personal.locator('[data-action="overview-account"]'),
+    ).toHaveCount(0);
+    await expect(
+      personal.getByText(
+        "No accounts assigned to you. Assign a Home Assistant user in Edit account.",
+      ),
+    ).toBeVisible();
+
     const exportData = await other.evaluate((el) =>
       el.hass.callWS({ type: "autonomous_budget/finance", command: "export" }),
     );

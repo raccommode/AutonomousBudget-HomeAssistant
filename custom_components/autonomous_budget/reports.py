@@ -5,23 +5,27 @@ from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 
-from .finance import balance, budget_access, convert, currency, day, money, objects, visible
+from .finance import balance, bank_amount, budget_access, convert, currency, day, money, objects, visible
 from .investments import portfolio
 
 
 def report(db, actor, p):
     unit = currency(p.get("currency", "CAD"))
     today = date.fromisoformat(p.get("today", date.today().isoformat()))
-    start = day(p.get("from", today.replace(day=1).isoformat()))
-    end = day(p.get("to", today.isoformat()))
+    personal = p.get("overview") is True
+    start = day(today.replace(day=1).isoformat() if personal else p.get("from", today.replace(day=1).isoformat()))
+    end = day(today.isoformat() if personal else p.get("to", today.isoformat()))
     if start > end:
         from .model import ValidationError
 
         raise ValidationError("The end date must follow the start date.")
+    linked = {m["account_id"] for m in objects(db, "mapping")} if personal else set()
     accounts = [
         a
         for a in objects(db, "account")
-        if visible(db, a, actor) and (not p.get("account_ids") or a["id"] in p["account_ids"])
+        if visible(db, a, actor)
+        and (not personal or (a.get("assigned_user_id") == actor and not a.get("archived")))
+        and (not p.get("account_ids") or a["id"] in p["account_ids"])
     ]
     groups = {
         key: defaultdict(lambda: {"income": Decimal(0), "expenses": Decimal(0), "transactions": set()})
@@ -32,18 +36,20 @@ def report(db, actor, p):
     account_values = []
     investments = []
     for acc in accounts:
-        actual_balance = balance(db, acc, end)
-        value = convert(db, actual_balance, acc["currency"], unit, end, actor)
-        if value is None:
+        actual_balance = bank_amount(acc) if acc["id"] in linked else balance(db, acc, end)
+        if acc["id"] in linked and (actual_balance is None or acc.get("bank_balance_status") == "unavailable"):
+            missing.append({"type": "bank_balance", "account_id": acc["id"], "date": acc.get("bank_checked")})
+        value = convert(db, actual_balance, acc["currency"], unit, end, actor) if actual_balance is not None else None
+        if value is None and actual_balance is not None:
             missing.append({"type": "rate", "currency": acc["currency"], "date": end, "account_id": acc["id"]})
-        else:
+        elif value is not None:
             net_worth += value
             debt += min(Decimal(0), value) if acc["type"] in ("credit", "loan") else 0
         account_values.append(
             {
                 "id": acc["id"],
                 "name": acc["name"],
-                "balance": money(actual_balance, acc["currency"]),
+                "balance": money(actual_balance, acc["currency"]) if actual_balance is not None else None,
                 "currency": acc["currency"],
                 "value": money(value, unit) if value is not None else None,
             }
@@ -85,6 +91,8 @@ def report(db, actor, p):
                     bucket["transactions"].add(tx["id"])
         if acc["type"] == "investment":
             holdings = portfolio(db, acc, end, include_bank=True)
+            if personal and acc["id"] in linked and acc.get("bank_holdings_status") == "unavailable":
+                missing.append({"type": "holdings", "account_id": acc["id"], "date": acc.get("bank_holdings_date")})
             if holdings.get("bank_history_missing"):
                 missing.append({"type": "holdings_history", "account_id": acc["id"], "date": end})
             for pos in holdings["positions"]:
@@ -123,7 +131,7 @@ def report(db, actor, p):
                     dividends += dividend
     assets = []
     for asset in objects(db, "asset"):
-        if p.get("account_ids") or not visible(db, asset, actor):
+        if personal or p.get("account_ids") or not visible(db, asset, actor):
             continue
         valuations = [v for v in objects(db, "valuation") if v["asset_id"] == asset["id"] and v["date"] <= end]
         latest = max(valuations, key=lambda v: v["date"], default=None)
@@ -154,7 +162,7 @@ def report(db, actor, p):
     budget_comparisons = []
     item_comparisons = []
     document = db.execute("SELECT body FROM documents WHERE id='budgets'").fetchone()
-    if document:
+    if document and not personal:
         from .model import occurrences, period_bounds
         from .sharing import contribution_amounts
 
@@ -246,6 +254,8 @@ def report(db, actor, p):
             bucket["expenses"] = money(bucket["expenses"], unit)
     return {
         "currency": unit,
+        "scope": "assigned_user" if personal else "household",
+        "balance_basis": "bank_and_ledger" if personal else "ledger",
         "from": start,
         "to": end,
         "income": money(income, unit),

@@ -99,3 +99,55 @@ async def test_non_admin_reads_and_edits_other_creator_account(store):
     )
     conn.send_error.assert_not_called()
     assert engine.query("bob", "transactions")["total"] == 1
+
+
+async def test_budget_assignment_validates_ha_user_but_remains_shared(store, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        store.hass,
+        "auth",
+        SimpleNamespace(
+            async_get_users=AsyncMock(
+                return_value=[
+                    SimpleNamespace(id="alice", is_active=True, system_generated=False),
+                    SimpleNamespace(id="inactive", is_active=False, system_generated=False),
+                    SimpleNamespace(id="system", is_active=True, system_generated=True),
+                ]
+            )
+        ),
+        raising=False,
+    )
+    budget = await store.async_mutate("budget_create", {"name": "Home", "currency": "CAD"}, 0)
+    for assigned in ("missing", "inactive", "system"):
+        conn = connection()
+        await websocket_mutate.__wrapped__(
+            store.hass,
+            conn,
+            {
+                "id": 1,
+                "action": "budget_update",
+                "revision": 1,
+                "payload": {"budget_id": budget["id"], "assigned_user_id": assigned},
+            },
+        )
+        assert "valid Home Assistant user" in conn.send_error.call_args.args[2]
+        assert store.data["revision"] == 1
+    conn = connection()
+    await websocket_mutate.__wrapped__(
+        store.hass,
+        conn,
+        {
+            "id": 2,
+            "action": "budget_update",
+            "revision": 1,
+            "payload": {"budget_id": budget["id"], "assigned_user_id": "alice"},
+        },
+    )
+    conn.send_error.assert_not_called()
+    assert store.data["budgets"][0]["assigned_user_id"] == "alice"
+    await websocket_finance.__wrapped__(store.hass, conn, {"id": 3, "command": "budgets", "payload": {}})
+    assert conn.send_result.call_args.args[1][0]["assigned_user_id"] == "alice"
+
+    await websocket_finance.__wrapped__(store.hass, conn, {"id": 4, "command": "export", "payload": {}})
+    assert conn.send_result.call_args.args[1]["budgets"][0]["assigned_user_id"] == "alice"

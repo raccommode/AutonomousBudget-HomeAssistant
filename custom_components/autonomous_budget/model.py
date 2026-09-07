@@ -66,6 +66,9 @@ def validate_settings(data: dict) -> dict:
 
 def validate_budget(data: dict) -> dict:
     """Normalize metadata and optional per-budget pay schedule overrides."""
+    assigned = data.get("assigned_user_id") or None
+    if assigned is not None and (not isinstance(assigned, str) or len(assigned) > 128):
+        raise ValidationError("Choose a valid Home Assistant user.")
     currency = choice(data.get("currency"), CURRENCIES, "currency")
     kind = choice(data.get("kind", "personal"), ("personal", "shared"), "budget type")
     allocations = data.get("allocations", [])
@@ -89,6 +92,7 @@ def validate_budget(data: dict) -> dict:
         raise ValidationError("Only shared budgets can have an allocation.")
     return {
         "name": text(data.get("name"), "Budget name"),
+        "assigned_user_id": assigned,
         "currency": currency,
         "kind": kind,
         "allocations": normalized,

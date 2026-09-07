@@ -232,3 +232,34 @@ async def test_linked_budgets_are_visible_to_household_before_and_after_refresh(
     unsubscribe()
     assert snapshots and all(len(s["budgets"]) == 2 for s in snapshots)
     assert engine.query("bob", "reports")["budget_comparisons"]
+
+
+async def test_optional_budget_assignment_survives_edit_reload_and_clearing(store, tmp_path):
+    import json
+
+    from custom_components.autonomous_budget.database import connect, initialize
+    from custom_components.autonomous_budget.finance import Finance
+
+    budget = await store.async_mutate(
+        "budget_create", {"name": "Home", "currency": "CAD", "assigned_user_id": "alice"}, 0
+    )
+    await store.async_mutate("budget_update", {"budget_id": budget["id"], "name": "Renamed"}, 1)
+    fresh = BudgetStore(store.hass)
+    await fresh.async_load(DEFAULTS)
+    assert fresh.snapshot()["budgets"][0]["assigned_user_id"] == "alice"
+    backup = Finance(store.storage.path).query("alice", "export") | {
+        "budgets": store.data["budgets"],
+        "budget_settings": store.data["settings"],
+    }
+    assert backup["budgets"][0]["assigned_user_id"] == "alice"
+    restored = Finance(str(tmp_path / "restored.sqlite"))
+    initialize(restored.path)
+    restored.mutate("alice", "restore", {"backup": backup})
+    with connect(restored.path) as db:
+        document = json.loads(db.execute("SELECT body FROM documents WHERE id='budgets'").fetchone()[0])
+    assert document["budgets"][0]["assigned_user_id"] == "alice"
+    await store.async_mutate("budget_update", {"budget_id": budget["id"], "assigned_user_id": "bob"}, 2)
+    assert store.snapshot()["budgets"][0]["assigned_user_id"] == "bob"
+    await store.async_mutate("budget_update", {"budget_id": budget["id"], "assigned_user_id": ""}, 3)
+    assert store.snapshot()["budgets"][0]["assigned_user_id"] is None
+    assert store.snapshot()["budgets"][0]["id"] == budget["id"]

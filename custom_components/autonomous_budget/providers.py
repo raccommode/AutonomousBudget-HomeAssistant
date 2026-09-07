@@ -22,9 +22,13 @@ async def request(hass, url, headers=None, params=None, optional=False):
         return await _request(hass, url, headers, params, optional)
     except ValidationError:
         raise
-    except aiohttp.ClientError, TimeoutError, ValueError:
+    except aiohttp.ClientError, TimeoutError:
         if optional:
-            return {"unavailable": True}
+            return {"unavailable": True, "reason": "network"}
+        raise
+    except ValueError:
+        if optional:
+            return {"unavailable": True, "reason": "invalid_response"}
         raise
 
 
@@ -36,7 +40,7 @@ async def _request(hass, url, headers=None, params=None, optional=False):
     now = time.monotonic()
     if cooldown.get(origin, 0) > now:
         if optional:
-            return {"unavailable": True}
+            return {"unavailable": True, "reason": "rate_limited"}
         raise ValidationError("The provider is rate limited. Try again later; the last values were preserved.")
     cache_key = url + json.dumps(params or {}, sort_keys=True)
     cached = cache.get(cache_key) if not headers else None
@@ -45,7 +49,7 @@ async def _request(hass, url, headers=None, params=None, optional=False):
     session = async_get_clientsession(hass)
     async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
         if optional and response.status in (404, 501):
-            return {"unavailable": True}
+            return {"unavailable": True, "reason": "not_found" if response.status == 404 else "unsupported"}
         if response.status == 429:
             try:
                 delay = min(3600, max(60, int(response.headers.get("Retry-After", "60"))))
@@ -53,13 +57,13 @@ async def _request(hass, url, headers=None, params=None, optional=False):
                 delay = 60
             cooldown[origin] = now + delay
             if optional:
-                return {"unavailable": True}
+                return {"unavailable": True, "reason": "rate_limited"}
             raise ValidationError("The provider is rate limited. Try again later; the last values were preserved.")
         if response.status in (401, 403):
             raise ValidationError("Connection authorization failed. Check your API key and account access.")
         if response.status != 200:
             if optional:
-                return {"unavailable": True}
+                return {"unavailable": True, "reason": "provider_error"}
             raise ValidationError("The provider is temporarily unavailable.")
         data = await response.json()
         if not headers:
@@ -79,6 +83,16 @@ def store_bank_snapshot(acc, balance_response, holdings=None):
     except ValidationError, KeyError, TypeError, AttributeError:
         amount = None
     acc["bank_balance_status"] = "ok" if amount is not None else "unavailable"
+    reason = balance_response.get("reason") if isinstance(balance_response, dict) else None
+    if (
+        amount is None
+        and not reason
+        and isinstance(bank, dict)
+        and isinstance(bank.get("currency"), str)
+        and bank["currency"].strip().upper() != acc["currency"]
+    ):
+        reason = "currency_mismatch"
+    acc["bank_balance_reason"] = None if amount is not None else reason or "invalid_response"
     if amount is not None:
         acc["bank_balance"] = {"balance": {"amount": amount, "currency": acc["currency"]}}
         acc["bank_checked"] = when
@@ -91,7 +105,11 @@ def store_bank_snapshot(acc, balance_response, holdings=None):
             bank_positions(holdings, acc["id"], when)
         except ValidationError, KeyError, TypeError, ValueError:
             acc["bank_holdings_status"] = "unavailable"
+            acc["bank_holdings_reason"] = (
+                holdings.get("reason", "invalid_response") if isinstance(holdings, dict) else "invalid_response"
+            )
         else:
+            acc["bank_holdings_reason"] = None
             acc.update(
                 bank_holdings=holdings, bank_holdings_date=when, bank_positions_enabled=True, bank_holdings_status="ok"
             )
@@ -198,6 +216,23 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
                 summary["warnings"].append(
                     {"account_id": acc["id"], "name": acc["name"], "message": batch["sync_error"]}
                 )
+            snapshot = dict(acc)
+            store_bank_snapshot(snapshot, batch["balance"], batch.get("holdings"))
+            for part, message in (
+                ("balance", "Bank balance unavailable. The last received value is retained."),
+                ("holdings", "Investment holdings unavailable. The account remains connected."),
+            ):
+                if (part == "balance" or batch.get("holdings") is not None) and snapshot.get(
+                    f"bank_{part}_status"
+                ) == "unavailable":
+                    summary["warnings"].append(
+                        {
+                            "account_id": acc["id"],
+                            "name": acc["name"],
+                            "message": message,
+                            "reason": snapshot.get(f"bank_{part}_reason"),
+                        }
+                    )
             for incoming in batch["transactions"]:
                 tx = normalize_transaction(incoming, acc["currency"]) | {"account_id": acc["id"]}
                 if mapping.get("from") and tx["date"] < mapping["from"]:

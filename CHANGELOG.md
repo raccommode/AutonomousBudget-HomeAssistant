@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0 — 2026-09-07
+
+- Personalize Overview to the signed-in Home Assistant user: include only explicitly assigned, active accounts and assigned budgets. Keep all household records accessible from Accounts, Budgets and Reports.
+- Add optional Home Assistant user assignment when creating or editing a budget. Preserve assignments across edits, exports and restoration; existing budgets stay unassigned until selected.
+- Use the latest received bank balance for connected accounts in Overview, and the journal balance for manual accounts. Keep historical Reports and budget funding based on the journal. Include investment holdings once, show missing/stale data as incomplete, and keep overview flows scoped to the current month.
+- Explain unavailable bank balances and positions with safe provider failure reasons. Include optional-data failures in synchronization previews and mark applied synchronization as partial, preserving the last valid values.
+- Show bank balance, ledger balance and connection actions in investment portfolios. Explain empty bank positions and transaction histories instead of presenting unexplained empty tables.
+- Add English/French mobile and desktop assignment journeys, two-user overview checks, server-side filtering, backup round trips and provider recovery coverage.
+
 ## 1.3.0 — 2026-09-07
 
 - Unify all seven modules around one navigation bar, page-header pattern, type scale, spacing system, buttons, dialogs, tables and financial status labels. Align dashboard cards with the same visual rules and Home Assistant themes.

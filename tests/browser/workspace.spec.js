@@ -119,12 +119,6 @@ for (const language of ["en", "fr"]) {
     await nav.locator('[data-page="overview"]').click();
     await expect(panel.locator(".overview-hero .metric")).toBeVisible();
     await expect(panel.locator(".report-details")).toHaveCount(0);
-    const budgetLink = panel.locator('[data-action="overview-budget"]').last();
-    const budgetId = await budgetLink.getAttribute("data-id");
-    await budgetLink.click();
-    await expect(
-      app.locator(`.budget-tab[data-id="${budgetId}"]`),
-    ).toHaveAttribute("aria-current", "page");
     // Household metadata only: retain this fixture but archive it after the check.
     await app.evaluate(async (el, name) => {
       const request = (command, payload = {}) =>
@@ -135,5 +129,129 @@ for (const language of ["en", "fr"]) {
       );
       await request("save", { ...account, archived: true });
     }, name);
+  });
+}
+
+for (const language of ["en", "fr"]) {
+  test(`${language} personal overview and optional budget assignment`, async ({
+    page,
+  }) => {
+    if (language === "fr")
+      await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      ({ tokens, language }) => {
+        localStorage.setItem("hassTokens", JSON.stringify(tokens));
+        localStorage.setItem("selectedLanguage", JSON.stringify(language));
+      },
+      { tokens, language },
+    );
+    await page.goto("/autonomous-budget");
+    const app = page.locator("autonomous-budget-panel");
+    const budget = app.locator("autonomous-budget-view");
+    await expect(app.locator("h1")).toBeVisible();
+    const fixture = await app.evaluate(async (el) => {
+      const call = (command, payload) =>
+        el.hass.callWS({ type: "autonomous_budget/finance", command, payload });
+      const account = await call("save", {
+        kind: "account",
+        name: "Personal overview fixture",
+        currency: "CAD",
+        opening_date: "2026-01-01",
+        opening_balance: "123",
+        assigned_user_id: el.hass.user.id,
+      });
+      const unassigned = await call("save", {
+        kind: "account",
+        name: "Unassigned overview fixture",
+        currency: "CAD",
+        opening_date: "2026-01-01",
+        opening_balance: "900",
+      });
+      return { account, unassigned, user: el.hass.user.id };
+    });
+    let id;
+    try {
+      await budget.locator('[data-action="new-budget"]').click();
+      await budget
+        .locator('dialog [name="name"]')
+        .fill("Assigned budget fixture");
+      const select = budget.locator('dialog [name="assigned_user_id"]');
+      await expect(select).toHaveValue("");
+      if (language === "fr")
+        await expect(budget.locator("dialog")).toContainText(
+          "L’affectation détermine",
+        );
+      await select.selectOption(fixture.user);
+      await budget
+        .locator("dialog")
+        .screenshot({ path: test.info().outputPath("budget-assignment.png") });
+      await budget.locator('dialog button[type="submit"]').click();
+      await expect(budget.locator("dialog")).toBeHidden();
+      id = await budget.evaluate((el) => el.budget.id);
+      const nav = app.locator("nav[aria-label]");
+      await nav.locator('[data-page="overview"]').click();
+      const finance = app.locator("autonomous-finance-panel");
+      await expect(
+        finance.locator(
+          `[data-action="overview-account"][data-id="${fixture.account.id}"]`,
+        ),
+      ).toBeVisible();
+      await expect(
+        finance.locator(
+          `[data-action="overview-account"][data-id="${fixture.unassigned.id}"]`,
+        ),
+      ).toHaveCount(0);
+      const link = finance.locator(
+        `[data-action="overview-budget"][data-id="${id}"]`,
+      );
+      await expect(link).toBeVisible();
+      await page.screenshot({
+        path: test.info().outputPath("personal-overview.png"),
+        fullPage: true,
+      });
+      await link.click();
+      await expect(
+        budget.locator(`.budget-tab[data-id="${id}"]`),
+      ).toHaveAttribute("aria-current", "page");
+      await budget.locator('[data-action="edit-budget"]').click();
+      await expect(select).toHaveValue(fixture.user);
+      await select.selectOption("");
+      await budget.locator('dialog button[type="submit"]').click();
+      await expect(budget.locator("dialog")).toBeHidden();
+      await nav.locator('[data-page="overview"]').click();
+      await expect(finance.locator(".overview-hero .metric")).toBeVisible();
+      await expect(
+        finance.locator(`[data-action="overview-budget"][data-id="${id}"]`),
+      ).toHaveCount(0);
+      // Clearing an assignment personalizes the overview; the shared budget still exists.
+      const all = await app.evaluate((el) =>
+        el.hass.callWS({
+          type: "autonomous_budget/finance",
+          command: "budgets",
+        }),
+      );
+      expect(all.find((b) => b.id === id).assigned_user_id).toBeNull();
+    } finally {
+      await app.evaluate(
+        async (el, { fixture, id }) => {
+          for (const account of [fixture.account, fixture.unassigned])
+            await el.hass.callWS({
+              type: "autonomous_budget/finance",
+              command: "save",
+              payload: { ...account, archived: true },
+            });
+          if (id) {
+            const view = el.shadowRoot.querySelector("autonomous-budget-view");
+            await el.hass.callWS({
+              type: "autonomous_budget/mutate",
+              action: "budget_delete",
+              payload: { budget_id: id },
+              revision: view.data.revision,
+            });
+          }
+        },
+        { fixture, id },
+      );
+    }
   });
 }

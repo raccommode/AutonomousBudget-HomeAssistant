@@ -65,7 +65,7 @@ def test_historical_investment_income_and_sale_reporting(engine):
     assert engine.query("alice", "portfolio", {"account_id": acc["id"]})["positions"][0]["quantity"] == "6"
 
 
-def test_revocation_covers_dependent_objects_and_publication(engine):
+def test_household_users_can_edit_dependent_objects_and_publication(engine):
     acc = account(engine, sharing={"bob": "write"})
     cat = engine.mutate("alice", "save", {"kind": "category", "name": "Food", "sharing": {"bob": "read"}})
     rule = engine.mutate(
@@ -84,13 +84,11 @@ def test_revocation_covers_dependent_objects_and_publication(engine):
         },
     )
     engine.mutate("bob", "save", acc | {"publish_sensors": True})
-    assert not next(o for o in engine.query("alice", "snapshot")["objects"] if o["id"] == acc["id"])["publish_sensors"]
+    assert next(o for o in engine.query("alice", "snapshot")["objects"] if o["id"] == acc["id"])["publish_sensors"]
     engine.mutate("alice", "save", acc | {"sharing": {}})
-    assert all(o["kind"] not in ("rule", "loan", "account") for o in engine.query("bob", "snapshot")["objects"])
-    with pytest.raises(ValidationError, match="Access denied"):
-        engine.mutate("bob", "delete", {"id": rule["id"]})
-    with pytest.raises(ValidationError, match="Access denied"):
-        engine.query("bob", "loan_schedule", {"id": loan["id"]})
+    assert {"rule", "loan", "account"} <= {o["kind"] for o in engine.query("bob", "snapshot")["objects"]}
+    engine.mutate("bob", "delete", {"id": rule["id"]})
+    assert engine.query("bob", "loan_schedule", {"id": loan["id"]})
 
 
 def test_restore_refunds_independent_of_export_order_and_atomic_invalid_backup(engine, tmp_path):
@@ -468,7 +466,7 @@ def test_shared_journal_metadata_is_readable_and_restorable(engine, tmp_path):
     destination.mutate("bob", "restore", {"backup": engine.query("bob", "export")})
     assert destination.query("bob", "transactions")["total"] == 1
     engine.mutate("alice", "save", acc | {"sharing": {}})
-    assert engine.query("bob", "snapshot")["objects"] == []
+    assert engine.query("bob", "transactions")["total"] == 1
 
 
 def test_import_api_pages_do_not_truncate_the_committed_file(engine):

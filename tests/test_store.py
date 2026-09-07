@@ -194,7 +194,7 @@ async def test_failed_category_migration_does_not_publish_or_overwrite_old_store
     assert await store.storage.async_load() == legacy
 
 
-async def test_shared_link_never_broadcasts_private_projection_before_access_refresh(store):
+async def test_linked_budgets_are_visible_to_household_before_and_after_refresh(store):
     from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
     from custom_components.autonomous_budget.const import SIGNAL_CHANGED
@@ -230,5 +230,5 @@ async def test_shared_link_never_broadcasts_private_projection_before_access_ref
     )
     await store.hass.async_block_till_done()
     unsubscribe()
-    assert snapshots and all(s["budgets"] == [] for s in snapshots)
-    assert engine.query("bob", "reports")["budget_comparisons"] == []
+    assert snapshots and all(len(s["budgets"]) == 2 for s in snapshots)
+    assert engine.query("bob", "reports")["budget_comparisons"]

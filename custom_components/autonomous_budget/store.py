@@ -75,8 +75,7 @@ class BudgetStore:
             "budgets": [
                 b
                 for b in snapshot["budgets"]
-                if b["id"] not in access
-                or (access[b["id"]]["published"] if actor is None else actor in access[b["id"]]["readers"])
+                if b["id"] not in access or (access[b["id"]]["published"] if actor is None else True)
             ]
         }
 

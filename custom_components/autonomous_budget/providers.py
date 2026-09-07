@@ -13,7 +13,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .database import connect
-from .finance import account, day, get, money, number, objects, put, require, transaction, uid
+from .finance import Finance, account, day, get, money, number, objects, put, require, transaction, uid
 from .model import ValidationError
 
 
@@ -478,7 +478,8 @@ async def _provider_command(hass, actor, command, p):
                 return {"positions": len(result)}
 
         return await hass.async_add_executor_job(initialize_holdings)
-    if command == "provider_map":
+    if command in ("provider_map", "provider_create_account"):
+        creating = command == "provider_create_account"
         remote = await request(hass, base + "/accounts", headers)
         remote_account = next((a for a in remote["accounts"] if str(a["id"]) == str(p["remote_id"])), None)
         if not remote_account:
@@ -502,10 +503,24 @@ async def _provider_command(hass, actor, command, p):
             with connect(path) as db:
                 return account(db, p["account_id"], actor, True)
 
-        target = await hass.async_add_executor_job(local_target)
+        if creating:
+            from .finance import currency
+
+            account_data = p.get("account")
+            if not isinstance(account_data, dict) or account_data.get("id") or account_data.get("portfolio_id"):
+                raise ValidationError("Enter a new local account to link.")
+            account_data = account_data | {"kind": "account"}
+            target = account_data | {
+                "owner": actor,
+                "type": account_data.get("type", "checking"),
+                "currency": currency(account_data.get("currency") or remote_currency),
+            }
+            account_data["currency"] = target["currency"]
+        else:
+            target = await hass.async_add_executor_job(local_target)
         holdings = None
-        if target["owner"] != actor or target["currency"] != remote_currency:
-            raise ValidationError("Use your own account in the same currency.")
+        if target["currency"] != remote_currency:
+            raise ValidationError("Use an account in the same currency.")
         if target["type"] == "investment":
             remote_id = str(remote_account["id"])
             if not remote_id.isdigit():
@@ -514,7 +529,7 @@ async def _provider_command(hass, actor, command, p):
             if not holdings.get("unavailable"):
                 from .investments import bank_positions
 
-                bank_positions(holdings, target["id"], dt_util.now().date().isoformat())
+                bank_positions(holdings, target.get("id", "new-account"), dt_util.now().date().isoformat())
 
         def map_account():
             with connect(path) as db:
@@ -526,9 +541,13 @@ async def _provider_command(hass, actor, command, p):
                     or fresh_connection.get("api_key") != connection["api_key"]
                 ):
                     raise ValidationError("This connection is disconnected.")
-                acc = account(db, p["account_id"], actor, True)
-                if acc["owner"] != actor or acc["currency"] != remote_currency:
-                    raise ValidationError("Use your own account in the same currency.")
+                acc = (
+                    Finance(path).save(db, actor, account_data)
+                    if creating
+                    else account(db, p["account_id"], actor, True)
+                )
+                if acc["currency"] != remote_currency:
+                    raise ValidationError("Use an account in the same currency.")
                 if any(
                     m["account_id"] == acc["id"]
                     and (m["connection_id"] != connection["id"] or str(m["remote_id"]) != str(p["remote_id"]))

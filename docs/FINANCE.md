@@ -1,10 +1,10 @@
 # Accounts, investments and wealth
 
-Autonomous Budget 1.0 adds a private financial journal alongside the existing household budget planner. You can use budgets, accounts, or both. No budget or payday is required to record transactions or investments.
+Autonomous Budget adds a household financial journal alongside the existing household budget planner. You can use budgets, accounts, or both. No budget or payday is required to record transactions or investments.
 
 ## Getting started
 
-Open **Autonomous Budget → Accounts → Add account**. Choose checking, savings, cash, credit card, loan, or investment, a currency, and a dated opening balance. Use negative balances for money owed. Manual transactions start on that opening date. Lunch Flow can also retrieve earlier history: those rows are marked **Before opening balance**, remain searchable and categorizable, and do not change the dated opening balance or later reconciliation totals.
+As a Home Assistant administrator, open **Autonomous Budget → Accounts → Add account**. Optionally assign a Home Assistant user to identify the account holder; leave it empty for an unassigned account. This does not restrict access. Choose checking, savings, cash, credit card, loan, or investment, a currency, and a dated opening balance. Use negative balances for money owed. Manual transactions start on that opening date. Lunch Flow can also retrieve earlier history: those rows are marked **Before opening balance**, remain searchable and categorizable, and do not change the dated opening balance or later reconciliation totals.
 
 Use **Finance settings → Modules and display** to hide modules and choose your reporting currency. Hiding a module keeps its data. The interface follows your Home Assistant profile language (English or French). Names you enter are preserved.
 
@@ -85,7 +85,7 @@ Charts, CSV exports and **Print / PDF** are included. Use your browser's print d
 
 ## Linking budgets
 
-An administrator can use **Finance settings → Link an account** to assign an explicit percentage of a cash or credit account to a budget. An account's allocations across budgets must total at most 100%; a budget can receive several accounts. Only the account owner may authorize the link. Investment accounts, cash pockets inside a portfolio, and property do not automatically become spendable budget money.
+An administrator can use **Finance settings → Link an account** to assign an explicit percentage of a cash or credit account to a budget. An account's allocations across budgets must total at most 100%; a budget can receive several accounts. Existing allocations can be updated or removed by any authenticated Home Assistant user. Investment accounts, cash pockets inside a portfolio, and property do not automatically become spendable budget money.
 
 In a linked budget, allocated ledger cash and credit debt replace the manual balance fields for the available-after-reserves estimate. They are converted into the budget currency. Forecast amounts and negative reserves are preserved. An expense is excluded from projected reserves only when its frequency and the matching positive income’s frequency both equal the budget’s pay period, with a payment on the same date. Bills with other frequencies retain their installments even when they fall on payday.
 
@@ -99,8 +99,8 @@ Use a **Personal API** destination from [Lunch Flow](https://www.lunchflow.app/d
 
 1. Create a Lunch Flow API destination and enable the remote accounts you want to expose.
 2. In **Finance settings → Connect Lunch Flow**, save the key. It stays in the server database, is redacted from API responses, and is omitted from JSON exports and audit payloads.
-3. Choose remote accounts and map each to one of your local accounts in the same currency. The integration requests all available history, with no start-date field. The bank/provider determines how far back it can supply data. Create a local account first if necessary. Existing links keep their previous import boundary until you save the mapping again.
-4. Each saved link appears below its connection as **Remote account is linked to Local account**. Use **Unlink** to stop syncing that pair while retaining imported history. **Rename** changes the connection name without requesting its key again.
+3. Open **Accounts → Add account**. If an enabled connection exists, **Choose a Lunch Flow connection** lets you select it and then an available remote account. Complete the local account details and save to create and link the account together. Leave the connection empty for a manual account; no provider fields appear without an enabled connection. To link an existing unlinked account, use **Edit account**. The currencies must match. The integration requests all available history, with no start-date field; the bank/provider determines how far back it can supply data. Existing links retain their previous import boundary until saved again.
+4. Each saved link appears in **Accounts**, on the account card and journal, as **Remote account is linked to Local account**, with the connection name. Use **Unlink** to stop syncing that pair while retaining imported history. **Rename** changes the connection name without requesting its key again.
 5. Open **Preview synchronization**, inspect the rows, then confirm the journal import. Only initialized mappings participate in subsequent daily synchronization; manual refresh is also available.
 
 Sync deduplicates external IDs, distinguishes pending rows, and proposes matches with nearby manual transactions. Ambiguous matches or missing stable bank IDs become review conflicts. Categories, split lines, notes and reconciliations are preserved. A bank correction that affects reconciled amounts/dates or split totals needs review; no silent adjustment is used to match the received bank balance.
@@ -109,11 +109,11 @@ The received bank balance and the calculated journal balance are displayed separ
 
 **Validation status:** automated tests use representative Personal API account, transaction, balance and holdings responses, repeated syncs, pending transitions, conflicts and network failures. A live bank connection has not been validated: that requires a test key and authorized accounts. Provider-specific export and banking behavior should be checked in the initial preview.
 
-## Sharing, cards and privacy
+## Household access and dashboard cards
 
-Accounts are private by default. In Edit account, grant named Home Assistant users Read or Edit access. Server-side checks apply to journal operations, reports, exports, card data and connections; hiding a dashboard is not an access control. Currency pockets follow their parent portfolio's current access. Revocation applies to subsequent reads and refreshes.
+All authenticated Home Assistant users can view and edit financial data, including accounts created by other users, transactions, portfolios, reports, exports, connections and linked budgets. This also applies to records created before version 1.2.0: old named sharing settings no longer restrict access. Optionally assign an account to a Home Assistant user in **Edit account**; the assignment identifies the holder without changing access. Personal display preferences remain per user.
 
-Legacy unlinked budgets retain household reading/export and administrator editing. Linking a budget restricts it to the intersection of readers of all its source accounts, including connected common/personal budgets. This prevents a private balance from appearing through a wider shared budget.
+Only Home Assistant administrators can create accounts, portfolios, budgets, connections and other financial setup records, or restore a backup. Members can enter/import transactions, record investment operations, edit existing records, unlink accounts and manage existing connections. These creation checks run on the server, including WebSocket and file-upload requests. Connection keys remain server-side and are never returned to application users.
 
 Add **Autonomous Finance** from the dashboard card picker. Choose an account or Net worth, a currency and any of the independently configurable blocks:
 
@@ -129,17 +129,17 @@ show_status: true
 show_link: true
 ```
 
-For an account card, use `view: account` and `account_id: <id>` (the visual editor lists only your accessible accounts). All new financial cards obtain data using the viewer's authenticated access.
+For an account card, use `view: account` and `account_id: <id>` (the visual editor lists household accounts). All new financial cards obtain data using the viewer's authenticated access.
 
-**Native account sensors are opt-in.** Enabling **Publish amounts as Home Assistant sensors** exposes the account total to Home Assistant users and integrations that can read entity states. Linked budget values are withheld unless all funding accounts are explicitly published. Previously published budget entities retain their IDs but become unavailable, with no monetary values or budget attributes, while private. Turning publication off removes the current entity; it does not erase already-recorded Home Assistant history or backups. Existing unlinked budget entities keep their IDs and behavior.
+**Native account sensors are opt-in.** Enabling **Publish amounts as Home Assistant sensors** exposes the account total to Home Assistant users and integrations that can read entity states. Linked budget values are withheld unless all funding accounts are explicitly published. Previously published budget entities retain their IDs but become unavailable, with no monetary values or budget attributes, while publication is disabled. Turning publication off removes the current entity; it does not erase already-recorded Home Assistant history or backups. Existing unlinked budget entities keep their IDs and behavior.
 
-Application privacy does not protect against the Home Assistant server administrator, filesystem access, or backups. No telemetry or external service is contacted by the integration unless the user invokes or enables that provider. Home Assistant installs the declared Python dependency during setup.
+The application does not isolate financial data between Home Assistant users or from the server administrator, filesystem access, or backups. No telemetry or external service is contacted by the integration unless the user invokes or enables that provider. Home Assistant installs the declared Python dependency during setup.
 
 ## Storage, backup and restore
 
 The SQLite journal lives at `.storage/autonomous_budget.sqlite`. Writes are atomic, indexed, serialized and revision-checked. The pre-1.0 Home Assistant Store remains untouched, and `.storage/autonomous_budget.pre-v1.json` is written before migration. Budget IDs, card configuration, entities and calculations are preserved.
 
-Use **Download backup** in Finance settings for a JSON export of accessible records, transactions and authorized budget definitions. Connection keys are excluded. Restore validates the file into an empty financial workspace, remaps identifiers, restores records privately and adds restored budgets separately without replacing existing budgets. Restoring household budget definitions requires an administrator. Reconnect external services and deliberately reapply any sharing or entity-publication permissions afterward.
+Use **Download backup** in Finance settings for a JSON export of household records, transactions and budget definitions. Connection keys are excluded. Restore validates the file into an empty financial workspace, remaps identifiers, restores records with household access and adds restored budgets separately without replacing existing budgets. Restoring requires an administrator. Reconnect external services and deliberately re-enable any native entity publication afterward.
 
 Application backups include validated bank position snapshots and historical journal rows, so restoring them preserves these balances and valuations. The application export contains the financial state; a normal Home Assistant configuration backup also preserves the database's full audit history, server configuration and legacy migration files. Protect these backups because they can include server-side connection credentials. Take a Home Assistant backup before upgrading or restoring. A malformed restore rolls back the complete database write.
 

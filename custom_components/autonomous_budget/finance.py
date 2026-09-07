@@ -107,9 +107,8 @@ def get(db, object_id, kind=None):
 
 
 def allowed(obj, actor, write=False):
-    return obj.get("owner") == actor or obj.get("sharing", {}).get(actor) in (
-        ("write",) if write else ("read", "write")
-    )
+    """HA authenticates requests; financial records are shared across the household."""
+    return bool(actor) and (obj["kind"] != "preferences" or obj.get("owner") == actor)
 
 
 def require(obj, actor, write=False):
@@ -153,9 +152,8 @@ def rate(db, source, target, when, actor):
         """SELECT body FROM objects WHERE kind='rate'
       AND json_extract(body,'$.date')<=?
       AND ((json_extract(body,'$.base')=? AND json_extract(body,'$.currency')=?) OR (json_extract(body,'$.base')=? AND json_extract(body,'$.currency')=?))
-      AND (owner=? OR json_extract(body,'$.public')=1 OR EXISTS (SELECT 1 FROM json_each(json_extract(objects.body,'$.sharing')) WHERE key=? AND value IN ('read','write')))
       ORDER BY json_extract(body,'$.date') DESC,(json_extract(body,'$.source')='manual') DESC LIMIT 1""",
-        (when, source, target, target, source, actor, actor),
+        (when, source, target, target, source),
     ).fetchone()
     if not row:
         return None
@@ -215,27 +213,8 @@ def read_record(db, obj, actor):
 
 
 def budget_access(db, budgets):
-    """Apply account privacy to every connected common/personal budget."""
-    access = {}
-    for link in objects(db, "budget_link"):
-        acc = get(db, link["account_id"], "account")
-        users = {acc["owner"], *acc.get("sharing", {})}
-        key = link["budget_id"]
-        access[key] = users if key not in access else access[key] & users
-    changed = True
-    while changed:
-        changed = False
-        for budget in budgets:
-            for allocation in budget.get("allocations", []):
-                keys = (budget["id"], allocation["budget_id"])
-                restricted = [access[k] for k in keys if k in access]
-                if restricted:
-                    common = set.intersection(*restricted)
-                    for key in keys:
-                        if access.get(key) != common:
-                            access[key] = common.copy()
-                            changed = True
-    return access
+    """Linked accounts do not restrict household budget access."""
+    return {}
 
 
 def transaction(db, payload, actor, internal=False, *, allow_history=False):
@@ -537,13 +516,8 @@ class Finance:
                 account(db, p["account_id"], actor)
                 return [o for o in objects(db, "reconciliation") if o["account_id"] == p["account_id"]]
             if command == "audit":
-                # Only changes made by this user; never expose others' private payloads.
-                return [
-                    dict(r)
-                    for r in db.execute(
-                        "SELECT id,at,action FROM audit WHERE actor=? ORDER BY id DESC LIMIT 100", (actor,)
-                    )
-                ]
+                # Household audit metadata; connection keys never appear here.
+                return [dict(r) for r in db.execute("SELECT id,at,actor,action FROM audit ORDER BY id DESC LIMIT 100")]
             if command == "export":
                 accounts = {o["id"] for o in objects(db, "account") if visible(db, o, actor)}
                 data = [o for o in objects(db) if visible(db, o, actor) and o["kind"] != "connection"]
@@ -590,8 +564,6 @@ class Finance:
                 account(db, obj["account_id"], actor, True)
             else:
                 require(obj, actor, True)
-            if obj["kind"] == "budget_link" and obj["owner"] != actor:
-                raise ValidationError("Only the account owner can link a budget.")
             if obj["kind"] not in ("rule", "budget_link", "recurring"):
                 raise ValidationError("Archive this record to preserve its history.")
             db.execute("DELETE FROM objects WHERE id=?", (obj["id"],))
@@ -901,8 +873,6 @@ class Finance:
             if not isinstance(sharing, dict) or any(v not in ("read", "write") for v in sharing.values()):
                 raise ValidationError("Invalid sharing permissions.")
         if kind == "account":
-            if old and old["owner"] != actor:
-                obj["publish_sensors"] = old.get("publish_sensors", False)
             if old and old.get("portfolio_id") != obj.get("portfolio_id"):
                 raise ValidationError("A cash pocket cannot move to another portfolio.")
             for field in (
@@ -919,6 +889,10 @@ class Finance:
             for field in ("publish_sensors", "archived"):
                 if field in obj and not isinstance(obj[field], bool):
                     raise ValidationError("Choose a valid switch value.")
+            assigned = obj.get("assigned_user_id") or None
+            if assigned is not None and not isinstance(assigned, str):
+                raise ValidationError("Choose a valid Home Assistant user.")
+            obj["assigned_user_id"] = assigned
             obj["name"] = label(obj.get("name"))
             obj["currency"] = currency(obj.get("currency"))
             obj["type"] = obj.get("type", "checking")
@@ -990,9 +964,6 @@ class Finance:
                 row = db.execute("SELECT body FROM documents WHERE id='budgets'").fetchone()
                 if not row or not any(b["id"] == obj.get("budget_id") for b in json.loads(row[0])["budgets"]):
                     raise ValidationError("Budget no longer exists.")
-                # The owner must explicitly authorize linking; writes shared on an account do not widen its audience.
-                if acc["owner"] != actor:
-                    raise ValidationError("Only the account owner can link a budget.")
             if kind == "loan":
                 from .investments import loan_schedule
 

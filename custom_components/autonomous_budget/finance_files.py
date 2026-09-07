@@ -33,10 +33,11 @@ class FinanceFilesView(HomeAssistantView):
             data = await hass.async_add_executor_job(json.loads, b"".join(chunks))
             actor = request["hass_user"]
             command, payload = data["command"], data["payload"]
+            from .permissions import authorize_finance
+
+            authorize_finance(command, payload, actor.is_admin)
             if command not in ("import_preview", "import", "restore"):
                 raise ValidationError("Unsupported file operation.")
-            if command == "restore" and payload.get("backup", {}).get("budgets") and not actor.is_admin:
-                raise ValidationError("An administrator must restore budget definitions.")
             engine = Finance(store.storage.path)
             if command == "import_preview":
                 from .database import connect

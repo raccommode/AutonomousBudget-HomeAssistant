@@ -42,20 +42,18 @@ def tx(engine, acc, amount, **extra):
     )
 
 
-def test_private_accounts_server_side_and_revocation(engine):
+def test_household_accounts_ignore_legacy_private_sharing_and_optional_assignment(engine):
     acc = account(engine)
     tx(engine, acc, "-25")
-    assert engine.query("bob", "snapshot")["objects"] == []
-    assert engine.query("bob", "transactions")["total"] == 0
-    with pytest.raises(ValidationError, match="Access denied"):
-        engine.query("bob", "transactions", {"account_id": acc["id"]})
-    engine.mutate("alice", "save", acc | {"sharing": {"bob": "read"}})
     assert engine.query("bob", "transactions")["total"] == 1
-    with pytest.raises(ValidationError, match="Access denied"):
-        engine.mutate("bob", "transaction", {"account_id": acc["id"], "date": "2026-09-01", "amount": "8"})
-    engine.mutate("alice", "save", acc | {"sharing": {}})
-    assert engine.query("bob", "reports")["accounts"] == []
-    assert engine.query("bob", "export")["transactions"] == []
+    engine.mutate("bob", "transaction", {"account_id": acc["id"], "date": "2026-09-01", "amount": "8"})
+    engine.mutate("bob", "save", acc | {"assigned_user_id": "alice", "sharing": {}})
+    assert engine.query("charlie", "transactions", {"account_id": acc["id"]})["total"] == 2
+    assert len(engine.query("charlie", "export")["transactions"]) == 2
+    edited = engine.mutate(
+        "charlie", "save", {"id": acc["id"], "kind": "account", "name": "Household", "assigned_user_id": None}
+    )
+    assert edited["assigned_user_id"] is None and edited["owner"] == "alice"
 
 
 def test_split_conservation_atomicity_and_revision(engine):
@@ -217,7 +215,7 @@ def test_loan_and_assets(engine):
     assert engine.query("alice", "reports", {"currency": "CAD", "to": "2026-09-01"})["net_worth"] == "3800.00"
 
 
-def test_linked_budget_splits_and_privacy(engine):
+def test_linked_budget_splits_and_sensor_publication(engine):
     acc = account(engine, sharing={"bob": "read"})
     budgets = [
         {"id": "b1", "name": "One", "currency": "CAD", "items": []},
@@ -235,7 +233,6 @@ def test_linked_budget_splits_and_privacy(engine):
     ctx = budget_context(engine.path, budgets, "2026-09-01")
     assert ctx["funding"]["b1"]["account_balance"] == "600.00"
     assert ctx["funding"]["b2"]["account_balance"] == "300.00"
-    assert ctx["access"]["b1"]["readers"] == {"alice", "bob"}
     assert not ctx["access"]["b1"]["published"]
     with pytest.raises(ValidationError, match="100%"):
         engine.mutate(
@@ -421,13 +418,13 @@ def test_provider_pending_null_id_and_closed_period(engine):
         tx(engine, acc, "-10")
 
 
-def test_pocket_access_follows_parent_after_revocation(engine):
+def test_pockets_remain_household_visible_without_legacy_sharing(engine):
     parent = account(engine, type="investment", sharing={"bob": "read"})
     account(engine, "Dollar pocket", "USD", "100", type="investment", portfolio_id=parent["id"])
     assert len([o for o in engine.query("bob", "snapshot")["objects"] if o["kind"] == "account"]) == 2
     engine.mutate("alice", "save", parent | {"sharing": {}})
-    assert engine.query("bob", "snapshot")["objects"] == []
-    assert engine.query("bob", "reports")["accounts"] == []
+    assert len([o for o in engine.query("bob", "snapshot")["objects"] if o["kind"] == "account"]) == 2
+    assert len(engine.query("bob", "reports")["accounts"]) == 2
     assert engine.query("bob", "export")["transactions"] == []
 
 

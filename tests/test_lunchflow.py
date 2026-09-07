@@ -99,9 +99,7 @@ async def test_rename_unlink_preserve_key_history_and_reject_old_sync(engine, ba
     assert rename["name"] == "My bank" and "api_key" not in rename
     with connect(engine.path) as db:
         assert get(db, connection["id"])["api_key"] == "fixture-key"
-    with pytest.raises(ValidationError, match="Access denied"):
-        await command("provider_unmap", actor="bob", mapping_id=mapping["id"])
-    await command("provider_unmap", mapping_id=mapping["id"])
+    await command("provider_unmap", actor="bob", mapping_id=mapping["id"])
     assert not any(o["kind"] == "mapping" for o in engine.query("alice", "snapshot")["objects"])
     new_mapping = await command("provider_map", account_id=acc["id"], remote_id="42")
     assert new_mapping["version"] != mapping["version"]
@@ -145,9 +143,8 @@ async def test_auto_holdings_in_portfolio_and_wealth_without_fake_trades(engine,
     assert engine.query("alice", "transactions")["total"] == 0
     report = engine.query("alice", "reports", {"currency": "CAD"})
     assert report["net_worth"] == "300.00"
-    with pytest.raises(ValidationError, match="Access denied"):
-        engine.query("bob", "portfolio", {"account_id": acc["id"]})
-    assert engine.query("bob", "reports", {"currency": "CAD"})["net_worth"] == "0.00"
+    assert len(engine.query("bob", "portfolio", {"account_id": acc["id"]})["positions"]) == 2
+    assert engine.query("bob", "reports", {"currency": "CAD"})["net_worth"] == "300.00"
     await command("provider_sync", confirm_initial=True)
     state["holdings"]["holdings"][1]["quantity"] = "0.2"
     state["holdings"]["holdings"][1]["value"] = 200
@@ -227,3 +224,76 @@ def test_manual_requests_cannot_bypass_opening_date_with_historical_flag(engine)
         engine.mutate(
             "alice", "transaction", {"account_id": acc["id"], "date": "2010-01-01", "amount": "-5", "historical": True}
         )
+
+
+async def test_create_account_and_lunchflow_link_are_atomic(engine, bank):
+    _, state, command = bank
+    data = {
+        "name": "New brokerage",
+        "type": "investment",
+        "currency": "CAD",
+        "opening_date": "2026-01-01",
+        "opening_balance": "0",
+    }
+    state["holdings"] = {
+        "holdings": [
+            {
+                "security": {"name": "Bitcoin", "tickerSymbol": "BTC", "currency": "CAD"},
+                "quantity": "0.1",
+                "price": 1000,
+            }
+        ]
+    }
+    mapping = await command("provider_create_account", remote_id="42", account=data)
+    snapshot = engine.query("alice", "snapshot")
+    acc = next(o for o in snapshot["objects"] if o["id"] == mapping["account_id"])
+    assert acc["name"] == "New brokerage" and acc["owner"] == "alice"
+    assert (
+        engine.query("alice", "portfolio", {"account_id": acc["id"]})["positions"][0]["instrument"]["name"] == "Bitcoin"
+    )
+    assert mapping["from"] is None
+    with pytest.raises(ValidationError, match="Unlink"):
+        await command("provider_create_account", remote_id="42", account=data | {"name": "Duplicate"})
+    assert len([o for o in engine.query("alice", "snapshot")["objects"] if o["kind"] == "account"]) == 1
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"currency": "USD"},
+        {"opening_date": "bad-date"},
+        {"opening_balance": "NaN"},
+        {"id": "existing-id"},
+        {"portfolio_id": "existing-id"},
+    ],
+)
+async def test_invalid_linked_creation_leaves_no_local_account(engine, bank, changes):
+    _, _, command = bank
+    data = {"name": "Example", "currency": "CAD", "opening_date": "2026-01-01", "opening_balance": "0"} | changes
+    with pytest.raises(ValidationError):
+        await command("provider_create_account", remote_id="42", account=data)
+    assert not any(o["kind"] in ("account", "mapping") for o in engine.query("alice", "snapshot")["objects"])
+
+
+async def test_linked_creation_rechecks_connection_after_provider_request(engine, bank, monkeypatch):
+    connection, _, command = bank
+    original = providers.request
+
+    async def disconnect_during_fetch(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        with connect(engine.path) as db:
+            obj = get(db, connection["id"])
+            obj["enabled"] = False
+            from custom_components.autonomous_budget.finance import put
+
+            put(db, obj)
+        return result
+
+    monkeypatch.setattr(providers, "request", disconnect_during_fetch)
+    with pytest.raises(ValidationError, match="disconnected"):
+        await command(
+            "provider_create_account",
+            remote_id="42",
+            account={"name": "Example", "currency": "CAD", "opening_date": "2026-01-01"},
+        )
+    assert not any(o["kind"] in ("account", "mapping") for o in engine.query("alice", "snapshot")["objects"])

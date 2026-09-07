@@ -1,4 +1,4 @@
-"""Authenticated, paginated finance API and event delivery scoped to each user."""
+"""Authenticated, paginated finance API and event delivery for the household."""
 
 import sqlite3
 
@@ -24,14 +24,11 @@ def budget_context(path, budgets, today):
             selected = [o for o in links if o["budget_id"] == budget["id"]]
             if not selected:
                 continue
-            readers = None
             published = True
             cash, credit = number("0"), number("0")
             missing = False
             for link in selected:
                 acc = get(db, link["account_id"], "account")
-                users = {acc["owner"], *acc.get("sharing", {}).keys()}
-                readers = users if readers is None else readers & users
                 published = published and bool(acc.get("publish_sensors"))
                 value = convert(
                     db,
@@ -48,14 +45,14 @@ def budget_context(path, budgets, today):
                     cash += max(number("0"), value)
                 else:
                     cash += value
-            access[budget["id"]] = {"readers": readers, "published": published}
+            access[budget["id"]] = {"published": published}
             funding[budget["id"]] = {
                 "account_balance": None if missing else money(cash, budget["currency"]),
                 "credit_balance": money(credit, budget["currency"]),
                 "linked_accounts": True,
                 "conversion_missing": missing,
             }
-        # Sharing a budget projection must not expose another linked private budget.
+        # Native projections require explicit publication throughout linked budgets.
         changed = True
         while changed:
             changed = False
@@ -65,8 +62,7 @@ def budget_context(path, budgets, today):
                     restricted = [access[k] for k in ids if k in access]
                     if not restricted:
                         continue
-                    readers = set.intersection(*(set(a["readers"]) for a in restricted))
-                    merged = {"readers": readers, "published": all(a["published"] for a in restricted)}
+                    merged = {"published": all(a["published"] for a in restricted)}
                     for key in ids:
                         if access.get(key) != merged:
                             access[key] = merged.copy()
@@ -113,6 +109,24 @@ async def websocket_finance(hass, connection, msg):
     command = msg["command"]
     payload = msg["payload"]
     try:
+        from .permissions import authorize_finance
+
+        authorize_finance(command, payload, connection.user.is_admin)
+        account_data = (
+            payload.get("account", {})
+            if command == "provider_create_account"
+            else payload
+            if command == "save" and payload.get("kind") == "account"
+            else {}
+        )
+        if not isinstance(account_data, dict):
+            raise ValidationError("Enter a new local account to link.")
+        assigned = account_data.get("assigned_user_id")
+        if assigned and not any(
+            user.id == assigned and user.is_active and not user.system_generated
+            for user in await hass.auth.async_get_users()
+        ):
+            raise ValidationError("Choose a valid Home Assistant user.")
         if command == "import_preview":
             from .imports import preview
 
@@ -161,15 +175,17 @@ async def websocket_finance(hass, connection, msg):
             )
             if command == "snapshot":
                 result["default_view"] = getattr(store, "start_view", "budgets")
+                users = {
+                    u.id: u.name for u in await hass.auth.async_get_users() if u.is_active and not u.system_generated
+                }
+                for obj in result["objects"]:
+                    if obj["kind"] == "account":
+                        obj["assigned_user_name"] = users.get(obj.get("assigned_user_id"))
             if command == "export":
                 permitted = {b["id"] for b in store.visible_snapshot(actor)["budgets"]}
                 result["budgets"] = [b for b in store.data["budgets"] if b["id"] in permitted]
                 result["budget_settings"] = store.data["settings"]
         else:
-            if command == "save" and payload.get("kind") == "budget_link" and not connection.user.is_admin:
-                raise ValidationError("A Home Assistant administrator must link budgets.")
-            if command == "restore" and payload.get("backup", {}).get("budgets") and not connection.user.is_admin:
-                raise ValidationError("An administrator must restore budget definitions.")
             async with store.lock:
                 result = await hass.async_add_executor_job(engine.mutate, actor, command, payload, msg.get("revision"))
                 if command == "restore":

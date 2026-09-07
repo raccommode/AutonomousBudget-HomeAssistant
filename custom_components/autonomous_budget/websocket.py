@@ -50,23 +50,14 @@ def websocket_subscribe(hass, connection, msg):
         vol.Required("revision"): vol.All(int, vol.Range(min=0)),
     }
 )
-@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_mutate(hass, connection, msg):
-    """Only administrators can modify household financial information."""
+    """Household edits are shared; only administrators create budgets."""
     if (store := get_store(hass, connection, msg)) is None:
         return
     try:
-        budget_id = msg["payload"].get("budget_id")
-        if (
-            budget_id in store.finance_context["access"]
-            and connection.user.id not in store.finance_context["access"][budget_id]["readers"]
-        ):
-            raise ValidationError("Access denied.")
-        for allocation in msg["payload"].get("allocations", []):
-            audience = store.finance_context["access"].get(allocation.get("budget_id"))
-            if audience and connection.user.id not in audience["readers"]:
-                raise ValidationError("Access denied.")
+        if msg["action"] == "budget_create" and not connection.user.is_admin:
+            raise ValidationError("A Home Assistant administrator must create budgets.")
         result = await store.async_mutate(msg["action"], msg["payload"], msg["revision"])
     except ValidationError as err:
         connection.send_error(msg["id"], "invalid_input", str(err))

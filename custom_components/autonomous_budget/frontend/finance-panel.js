@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.1.0";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.2.0";
 
 const names = {
   overview: "Overview",
@@ -49,7 +49,7 @@ const names = {
   once: "One time",
 };
 const CSS = `${baseCSS}
-:host{display:block;background:var(--ab-bg);min-height:100%;padding:28px 36px}.heading,.toolbar,.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.heading{justify-content:space-between;margin-bottom:24px}.toolbar{margin:16px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.box{border:1px solid var(--ab-line);border-radius:14px;background:var(--ab-surface);padding:22px;margin-bottom:18px}.metric{font-size:28px;margin:10px 0;overflow-wrap:anywhere}.muted{color:var(--ab-muted)}.badge{background:var(--ab-pale);border-radius:8px;padding:3px 8px;font-size:12px}.table{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--ab-line);white-space:nowrap}th{color:var(--ab-muted)}.negative{color:#be5141}.positive{color:var(--ab-green)}input,select,textarea{background:var(--ab-surface);color:var(--ab-text);border:1px solid var(--ab-line);border-radius:7px;padding:10px;max-width:100%;min-width:0;font:inherit}label{display:grid;gap:6px;font-size:13px}.form{display:grid;grid-template-columns:1fr 1fr;gap:15px}.full{grid-column:1/-1}.dialog{border:1px solid var(--ab-line);border-radius:15px;background:var(--ab-surface);color:var(--ab-text);padding:25px;width:min(760px,calc(100% - 24px));max-height:90dvh;overflow:auto}.dialog:not([open]){display:none}.dialog::backdrop{background:#102d2377}.dialog h2{margin-bottom:20px}.dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.error{color:#be5141;margin:12px 0}.empty{padding:45px;text-align:center}.chart{display:flex;align-items:end;gap:14px;height:180px;margin:24px 0}.column{flex:1;min-width:24px;text-align:center;font-size:11px}.bar{background:var(--ab-green);border-radius:5px 5px 0 0;min-height:2px}.splits{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;margin-bottom:8px}.numbers{text-align:right;font-variant-numeric:tabular-nums}.wrap{white-space:normal;max-width:320px}.danger{color:#be5141}.text-link{border:0;background:none;padding:3px;text-decoration:underline}.notice{padding:14px;background:var(--ab-pale);border-radius:8px;margin-bottom:15px}details{margin:15px 0}summary{cursor:pointer;font-weight:600}@media(max-width:650px){:host{padding:18px 12px}.form{grid-template-columns:1fr}.full{grid-column:auto}.splits{grid-template-columns:1fr 1fr}.metric{font-size:23px}}@media print{.toolbar,button,.dialog{display:none!important}:host{background:white;padding:0}.box{break-inside:avoid}.table{overflow:visible}table{font-size:10px}}`;
+:host{display:block;background:var(--ab-bg);min-height:100%;padding:28px 36px}.heading,.toolbar,.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.heading{justify-content:space-between;margin-bottom:24px}.toolbar{margin:16px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.box{border:1px solid var(--ab-line);border-radius:14px;background:var(--ab-surface);padding:22px;margin-bottom:18px}.metric{font-size:28px;margin:10px 0;overflow-wrap:anywhere}.muted{color:var(--ab-muted)}.badge{background:var(--ab-pale);border-radius:8px;padding:3px 8px;font-size:12px}.table{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--ab-line);white-space:nowrap}th{color:var(--ab-muted)}.negative{color:#be5141}.positive{color:var(--ab-green)}input,select,textarea{background:var(--ab-surface);color:var(--ab-text);border:1px solid var(--ab-line);border-radius:7px;padding:10px;max-width:100%;min-width:0;font:inherit}label{display:grid;gap:6px;font-size:13px}.form{display:grid;grid-template-columns:1fr 1fr;gap:15px}.full{grid-column:1/-1}.dialog{border:1px solid var(--ab-line);border-radius:15px;background:var(--ab-surface);color:var(--ab-text);padding:25px;width:min(760px,calc(100% - 24px));max-height:90dvh;overflow:auto}.dialog:not([open]),[hidden]{display:none!important}.dialog::backdrop{background:#102d2377}.dialog h2{margin-bottom:20px}.dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.error{color:#be5141;margin:12px 0}.empty{padding:45px;text-align:center}.chart{display:flex;align-items:end;gap:14px;height:180px;margin:24px 0}.column{flex:1;min-width:24px;text-align:center;font-size:11px}.bar{background:var(--ab-green);border-radius:5px 5px 0 0;min-height:2px}.splits{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;margin-bottom:8px}.numbers{text-align:right;font-variant-numeric:tabular-nums}.wrap{white-space:normal;max-width:320px}.danger{color:#be5141}.text-link{border:0;background:none;padding:3px;text-decoration:underline}.notice{padding:14px;background:var(--ab-pale);border-radius:8px;margin-bottom:15px}details{margin:15px 0}summary{cursor:pointer;font-weight:600}@media(max-width:650px){:host{padding:18px 12px}.form{grid-template-columns:1fr}.full{grid-column:auto}.splits{grid-template-columns:1fr 1fr}.metric{font-size:23px}}@media print{.toolbar,button,.dialog{display:none!important}:host{background:white;padding:0}.box{break-inside:avoid}.table{overflow:visible}table{font-size:10px}}`;
 
 export class FinancePanel extends BudgetLiveElement {
   constructor() {
@@ -196,6 +196,21 @@ export class FinancePanel extends BudgetLiveElement {
       : money(value, unit, this.language);
   }
   button(action, text, id = "", primary = false) {
+    if (
+      !this.hass?.user?.is_admin &&
+      [
+        "account-new",
+        "portfolio-new",
+        "pocket",
+        "instrument-new",
+        "asset-new",
+        "loan-new",
+        "connection",
+        "budget-link",
+        "restore",
+      ].includes(action)
+    )
+      return "";
     return `<button type="button" ${primary ? 'class="primary"' : ""} data-action="${action}" data-id="${esc(id)}">${esc(text)}</button>`;
   }
   opts(rows, selected, empty = true) {
@@ -247,6 +262,74 @@ export class FinancePanel extends BudgetLiveElement {
     if (!main) return;
     main.innerHTML = `<div class="heading"><div><h1>${names[this.page] || "Accounts"}</h1><p class="muted">Your accounts, on your terms.</p></div>${this.button("refresh", "Refresh")}</div>${this.error ? `<p role="alert" class="error">${esc(this.error)}</p>` : ""}${!this.data ? "<p>Loading…</p>" : this.page === "accounts" ? this.accounts() : this.page === "investments" ? this.investments() : this.page === "assets" ? this.assets() : this.page === "settings" ? this.settings() : this.reports()}`;
   }
+  accountLink(acc) {
+    const mapping = this.list("mapping").find((m) => m.account_id === acc.id);
+    if (!mapping) return "";
+    return `<div class="mapping-row" data-mapping-id="${esc(mapping.id)}"><small translate="no">${esc(this.obj(mapping.connection_id)?.name || "Lunch Flow")}</small><div class="toolbar"><span translate="no">${esc(mapping.remote_name || mapping.remote_id)}</span><span>is linked to</span><strong translate="no">${esc(acc.name)}</strong>${acc.can_write ? this.button("mapping-remove", "Unlink", mapping.id) : ""}</div></div>`;
+  }
+  accountConnectionPicker() {
+    const form = this.shadowRoot.querySelector("dialog form");
+    const connection = form.querySelector('[name="lunchflow_connection"]');
+    const target = form.querySelector("[data-lunchflow-account]");
+    const submit = form.querySelector('[type="submit"]');
+    let generation = 0;
+    connection.onchange = async () => {
+      const current = ++generation;
+      const connectionId = connection.value;
+      target.hidden = !connectionId;
+      target.innerHTML = "";
+      form.querySelector('[role="alert"]').textContent = "";
+      submit.disabled = !!connectionId;
+      if (!connectionId) return;
+      target.textContent = this.t("Loading…");
+      try {
+        const data = await this.api("provider_accounts", {
+          connection_id: connectionId,
+        });
+        if (current !== generation || !form.isConnected) return;
+        const available = data.accounts.filter(
+          (a) =>
+            !this.list("mapping").some(
+              (m) =>
+                m.connection_id === connectionId &&
+                m.remote_id === String(a.id),
+            ),
+        );
+        target.innerHTML = this.field(
+          "lunchflow_remote",
+          "Lunch Flow account",
+          "",
+          "text",
+          available.map((a) => [
+            String(a.id),
+            `${a.name}${a.currency ? ` (${a.currency})` : ""}`,
+          ]),
+        );
+        const remote = target.querySelector("select");
+        remote.required = true;
+        remote.onchange = () => {
+          const selected = available.find((a) => String(a.id) === remote.value);
+          if (!selected) return;
+          if (!form.querySelector('[name="name"]').value)
+            form.querySelector('[name="name"]').value = selected.name;
+          if (selected.currency)
+            form.querySelector('[name="currency"]').value = selected.currency;
+          if (!form.querySelector('[name="institution"]').value)
+            form.querySelector('[name="institution"]').value =
+              selected.institution_name || "";
+        };
+        submit.disabled = !available.length;
+        if (!available.length)
+          form.querySelector('[role="alert"]').textContent = this.t(
+            "No unlinked accounts are available for this connection.",
+          );
+      } catch (err) {
+        if (current !== generation || !form.isConnected) return;
+        target.innerHTML = "";
+        form.querySelector('[role="alert"]').textContent = err.message;
+      }
+    };
+  }
   accounts() {
     const acc = this.obj(this.selected);
     const all = this.list("account");
@@ -255,13 +338,13 @@ export class FinancePanel extends BudgetLiveElement {
         .filter((a) => this.showArchived || !a.archived)
         .map(
           (a) =>
-            `<section class="box"><span class="badge">${names[a.type]}</span><h2 translate="no">${esc(a.name)}</h2><p class="metric">${this.m(a.balance, a.currency)}</p><p class="muted" translate="no">${esc(a.institution || "")}</p>${this.button("account-open", "Transactions", a.id)}${a.can_write ? this.button("account-edit", "Edit", a.id) : ""}</section>`,
+            `<section class="box"><span class="badge">${names[a.type]}</span><h2 translate="no">${esc(a.name)}</h2><p class="metric">${this.m(a.balance, a.currency)}</p><p class="muted" translate="no">${esc(a.institution || "")}</p>${a.assigned_user_name ? `<p class="muted"><span>Assigned to</span>: <span translate="no">${esc(a.assigned_user_name)}</span></p>` : ""}${this.accountLink(a)}${this.button("account-open", "Transactions", a.id)}${a.can_write ? this.button("account-edit", "Edit", a.id) : ""}</section>`,
         )
         .join(
           "",
         )}</div>${!all.length ? '<section class="box empty">Create an account to start recording transactions. No budget is required.</section>' : ""}`;
     const journal = this.journal || { rows: [], total: 0 };
-    return `<div class="toolbar">${this.button("accounts-back", "All accounts")}<h2 translate="no">${esc(acc.name)}</h2><strong class="metric">${this.m(acc.balance, acc.currency)}</strong></div><div class="toolbar">${acc.can_write ? this.button("transaction-new", "Add transaction", acc.id, true) + this.button("transfer", "Transfer", acc.id) + this.button("import", "Import", acc.id) + this.button("reconcile", "Reconcile", acc.id) + this.button("account-edit", "Edit account", acc.id) : ""}${this.button("csv", "Export CSV")}${this.button("filter", "Filter")}</div>${acc.bank_balance ? `<div class="notice"><span>Bank balance</span>: <span translate="no">${esc(this.bankBalance(acc.bank_balance, acc.currency))}</span> · <span>Last synchronization</span> ${esc(acc.bank_checked)}</div>` : ""}<section class="box table"><table><thead><tr><th><input type="checkbox" data-action="select-all" aria-label="Select all"></th><th>Date</th><th>Payee</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${journal.rows.map((tx) => `<tr><td><input type="checkbox" name="selected-tx" value="${tx.id}" aria-label="Select transaction"></td><td>${esc(tx.date)}</td><td><span translate="no">${esc(tx.payee || tx.description)}</span><small class="muted" translate="no"> ${esc(tx.payee ? tx.description : "")}</small></td><td translate="no">${esc(tx.splits.map((s) => this.obj(s.category_id)?.name || "—").join(", "))}</td><td class="numbers ${Number(tx.amount) < 0 ? "negative" : "positive"}">${this.m(tx.amount, tx.currency)}</td><td>${names[tx.status]}${tx.historical ? '<small class="muted"> · Before opening balance</small>' : ""}</td><td>${acc.can_write ? this.button("transaction-edit", "Edit", tx.id) : ""}</td></tr>`).join("")}</tbody></table>${!journal.rows.length ? '<p class="empty">No transactions in this view.</p>' : ""}<div class="toolbar"><span>${journal.total}</span><span>transactions</span>${this.button("previous", "Previous")}${this.button("next", "Next")}${acc.can_write ? this.button("bulk", "Edit selection") : ""}</div></section>`;
+    return `<div class="toolbar">${this.button("accounts-back", "All accounts")}<h2 translate="no">${esc(acc.name)}</h2><strong class="metric">${this.m(acc.balance, acc.currency)}</strong></div><div class="toolbar">${acc.can_write ? this.button("transaction-new", "Add transaction", acc.id, true) + this.button("transfer", "Transfer", acc.id) + this.button("import", "Import", acc.id) + this.button("reconcile", "Reconcile", acc.id) + this.button("account-edit", "Edit account", acc.id) : ""}${this.button("csv", "Export CSV")}${this.button("filter", "Filter")}</div>${this.accountLink(acc)}${acc.bank_balance ? `<div class="notice"><span>Bank balance</span>: <span translate="no">${esc(this.bankBalance(acc.bank_balance, acc.currency))}</span> · <span>Last synchronization</span> ${esc(acc.bank_checked)}</div>` : ""}<section class="box table"><table><thead><tr><th><input type="checkbox" data-action="select-all" aria-label="Select all"></th><th>Date</th><th>Payee</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${journal.rows.map((tx) => `<tr><td><input type="checkbox" name="selected-tx" value="${tx.id}" aria-label="Select transaction"></td><td>${esc(tx.date)}</td><td><span translate="no">${esc(tx.payee || tx.description)}</span><small class="muted" translate="no"> ${esc(tx.payee ? tx.description : "")}</small></td><td translate="no">${esc(tx.splits.map((s) => this.obj(s.category_id)?.name || "—").join(", "))}</td><td class="numbers ${Number(tx.amount) < 0 ? "negative" : "positive"}">${this.m(tx.amount, tx.currency)}</td><td>${names[tx.status]}${tx.historical ? '<small class="muted"> · Before opening balance</small>' : ""}</td><td>${acc.can_write ? this.button("transaction-edit", "Edit", tx.id) : ""}</td></tr>`).join("")}</tbody></table>${!journal.rows.length ? '<p class="empty">No transactions in this view.</p>' : ""}<div class="toolbar"><span>${journal.total}</span><span>transactions</span>${this.button("previous", "Previous")}${this.button("next", "Next")}${acc.can_write ? this.button("bulk", "Edit selection") : ""}</div></section>`;
   }
   investments() {
     const portfolios = this.list("account").filter(
@@ -335,15 +418,7 @@ export class FinancePanel extends BudgetLiveElement {
     )
       .map(
         (c) =>
-          `<div class="box" data-connection-id="${esc(c.id)}"><h3 translate="no">${esc(c.name)}</h3><p>${esc(c.last_sync || "—")} · ${esc(c.status || "")}</p><div class="toolbar">${this.button("connection-rename", "Rename", c.id)}${this.button("mapping", "Choose accounts", c.id)}${this.button("sync-preview", "Preview synchronization", c.id)}${this.button("sync", "Synchronize", c.id)}${this.button("disconnect", "Disconnect", c.id)}</div>${this.list(
-            "mapping",
-          )
-            .filter((m) => m.connection_id === c.id)
-            .map(
-              (m) =>
-                `<div class="toolbar mapping-row" data-mapping-id="${esc(m.id)}"><span translate="no">${esc(m.remote_name || m.remote_id)}</span><span>is linked to</span><strong translate="no">${esc(this.obj(m.account_id)?.name || m.account_id)}</strong>${this.button("mapping-remove", "Unlink", m.id)}</div>`,
-            )
-            .join("")}</div>`,
+          `<div class="box" data-connection-id="${esc(c.id)}"><h3 translate="no">${esc(c.name)}</h3><p>${esc(c.last_sync || "—")} · ${esc(c.status || "")}</p><div class="toolbar">${this.button("connection-rename", "Rename", c.id)}${this.button("sync-preview", "Preview synchronization", c.id)}${this.button("sync", "Synchronize", c.id)}${this.button("disconnect", "Disconnect", c.id)}</div></div>`,
       )
       .join(
         "",
@@ -454,6 +529,7 @@ export class FinancePanel extends BudgetLiveElement {
         action,
       )
     ) {
+      const users = await this.api("users");
       const a =
         action === "account-edit"
           ? this.obj(id)
@@ -466,9 +542,24 @@ export class FinancePanel extends BudgetLiveElement {
               opening_date: this.today(),
               opening_balance: "0",
             };
+      const linked =
+        a.id && this.list("mapping").some((m) => m.account_id === a.id);
+      const connections =
+        action !== "pocket" && !linked
+          ? this.list("connection").filter((c) => c.enabled !== false)
+          : [];
       this.form(
         "Account",
-        this.field("name", "Name", a.name) +
+        (connections.length
+          ? this.field(
+              "lunchflow_connection",
+              "Choose a Lunch Flow connection",
+              "",
+              "text",
+              connections,
+            ) + "<div data-lunchflow-account hidden></div>"
+          : "") +
+          this.field("name", "Name", a.name) +
           this.field(
             "type",
             "Account type",
@@ -486,6 +577,13 @@ export class FinancePanel extends BudgetLiveElement {
           ) +
           this.field("currency", "Currency", a.currency) +
           this.field("institution", "Institution", a.institution) +
+          this.field(
+            "assigned_user_id",
+            "Assigned Home Assistant user (optional)",
+            a.assigned_user_id || "",
+            "text",
+            users,
+          ) +
           this.field("opening_date", "Opening date", a.opening_date, "date") +
           this.field(
             "opening_balance",
@@ -508,45 +606,36 @@ export class FinancePanel extends BudgetLiveElement {
             a.publish_sensors,
           ) +
           '<p class="full muted">Published sensor amounts can be read by other Home Assistant users.</p>' +
-          (a.id ? this.button("sharing", "Sharing", a.id) : ""),
-        (d) =>
-          save({
+          '<p class="full muted">All Home Assistant users can view and edit this account. Assignment does not restrict access.</p>',
+        async (d) => {
+          const { lunchflow_connection, lunchflow_remote, ...values } = d;
+          const data = {
             ...a,
-            ...d,
+            ...values,
             kind: "account",
             ...(action === "pocket" ? { portfolio_id: id } : {}),
-          }),
+          };
+          if (lunchflow_connection) {
+            if (!lunchflow_remote)
+              throw Error(this.t("Choose a Lunch Flow account."));
+            if (a.id) {
+              await save(data);
+              await this.api("provider_map", {
+                connection_id: lunchflow_connection,
+                remote_id: lunchflow_remote,
+                account_id: a.id,
+              });
+            } else {
+              await this.api("provider_create_account", {
+                connection_id: lunchflow_connection,
+                remote_id: lunchflow_remote,
+                account: data,
+              });
+            }
+          } else await save(data);
+        },
       );
-      return;
-    }
-    if (action === "sharing") {
-      const a = this.obj(id);
-      const users = await this.api("users");
-      this.form(
-        "Sharing",
-        users
-          .filter((u) => u.id !== a.owner)
-          .map((u) =>
-            this.field(
-              "user:" + u.id,
-              u.name,
-              a.sharing?.[u.id] || "none",
-              "text",
-              enumRows(["none", "read", "write"]),
-              true,
-            ),
-          )
-          .join(""),
-        (d) =>
-          save({
-            ...a,
-            sharing: Object.fromEntries(
-              Object.entries(d)
-                .filter(([, v]) => v !== "none")
-                .map(([k, v]) => [k.slice(5), v]),
-            ),
-          }),
-      );
+      if (connections.length) this.accountConnectionPicker();
       return;
     }
     if (["transaction-new", "transaction-edit"].includes(action)) {
@@ -1487,34 +1576,6 @@ export class FinancePanel extends BudgetLiveElement {
             ),
           }),
         "Initialize positions",
-      );
-      return;
-    }
-    if (action === "mapping") {
-      const data = await this.api("provider_accounts", { connection_id: id });
-      this.form(
-        "Choose accounts",
-        this.field(
-          "remote_id",
-          "Lunch Flow account",
-          "",
-          "text",
-          data.accounts.map((a) => [
-            String(a.id),
-            `${a.name} (${a.currency || this.t("Currency checked when linking")})`,
-          ]),
-          true,
-        ) +
-          this.field(
-            "account_id",
-            "Local account",
-            "",
-            "text",
-            this.list("account").filter((a) => a.can_write),
-            true,
-          ) +
-          '<p class="full">All available history will be retrieved. Investment holdings appear automatically in Investments.</p>',
-        (d) => this.api("provider_map", { ...d, connection_id: id }),
       );
       return;
     }

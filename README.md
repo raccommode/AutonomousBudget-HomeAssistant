@@ -20,11 +20,11 @@ Plan budgets, reconcile accounts, track investments and see your net worth — t
 
 ## New in 1.0: accounts, investments and wealth
 
-Use **budgets alone**, **accounts and wealth alone**, or connect them. Private account journals, custom expense categories, splits, reconciliation, CSV/OFX/QFX/QIF imports, multicurrency reports, portfolios, property and loan schedules now live beside the existing planner. Optional Lunch Flow synchronization, Yahoo/CoinGecko quotes and Frankfurter exchange rates can be enabled independently.
+Use **budgets alone**, **accounts and wealth alone**, or connect them. Household account journals, custom expense categories, splits, reconciliation, CSV/OFX/QFX/QIF imports, multicurrency reports, portfolios, property and loan schedules now live beside the existing planner. Optional Lunch Flow synchronization, Yahoo/CoinGecko quotes and Frankfurter exchange rates can be enabled independently.
 
 Open **Overview, Budgets, Accounts, Investments, Assets, Reports or Finance settings** in the sidebar panel. Modules can be hidden without deleting their data. No budget or payday is required for accounts.
 
-**[Read the accounts and wealth guide →](docs/FINANCE.md)** — setup, import formats, investment operations, privacy, dashboard cards, backup/restore and Lunch Flow validation status.
+**[Read the accounts and wealth guide →](docs/FINANCE.md)** — setup, import formats, investment operations, access, dashboard cards, backup/restore and Lunch Flow validation status.
 
 ![Private account journal](docs/screenshot-accounts.png)
 
@@ -255,13 +255,13 @@ The integration supports **English** and **French**. It automatically follows th
 
 ## Data and access
 
-Unlinked legacy budgets retain household read/export access and administrator-only editing. New accounts are private by default with named Read/Edit sharing. A linked budget inherits the intersection of its source accounts’ audiences, including common-budget relationships. Private financial cards use the viewer’s authenticated access. New account sensors are opt-in because native Home Assistant states are more widely accessible.
+All authenticated Home Assistant users can view and edit accounts, budgets, transactions, reports and connections, including existing records. Account assignment to a Home Assistant user is optional and informational. Administrators create accounts, budgets, connections and other financial records, and restore backups; members can record transactions and edit existing data. Financial dashboard cards share this household access. Native account sensors remain opt-in.
 
 Data lives in `.storage/autonomous_budget.sqlite`. The upgrade keeps the original store and writes a pre-migration JSON backup before migrating. Home Assistant configuration backups include the database and its audit history. Application JSON exports omit connection keys; the server administrator and server backups remain outside the application's privacy boundary. See [storage and privacy details](docs/FINANCE.md).
 
 ## Updating from an earlier version
 
-Download **1.1.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+Download **1.2.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
 
 This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
 

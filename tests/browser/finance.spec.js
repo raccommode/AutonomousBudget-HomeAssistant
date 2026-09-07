@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }, info) => {
   await page.goto("/autonomous-budget");
   await expect(page.locator("autonomous-budget-panel h1")).toBeVisible();
 });
-test("finance journal, reconciliation and private card", async ({ page }) => {
+test("finance journal, reconciliation and household card", async ({ page }) => {
   const app = page.locator("autonomous-budget-panel");
   await app.getByRole("button", { name: "Accounts", exact: true }).click();
   const finance = page.locator("autonomous-finance-panel");
@@ -266,7 +266,7 @@ test("investment operation and CSV import use the real finance backend", async (
   ).toBe(false);
 });
 
-test("separate Home Assistant user cannot read private accounts and loses revoked access", async ({
+test("Home Assistant members see and edit accounts while creation requires admin", async ({
   page,
   browser,
   request,
@@ -294,7 +294,8 @@ test("separate Home Assistant user cannot read private accounts and loses revoke
       command: "save",
       payload: {
         kind: "account",
-        name: "Private privacy test",
+        name: "Household access test",
+        assigned_user_id: user.id,
         type: "checking",
         currency: "CAD",
         opening_date: "2026-01-01",
@@ -357,44 +358,79 @@ test("separate Home Assistant user cannot read private accounts and loses revoke
           return { denied: e.message };
         }
       }, fixture.account.id);
-    expect((await read()).denied).toContain("Access denied");
-    await app.evaluate(
-      async (el, { account, user }) =>
-        el.hass.callWS({
-          type: "autonomous_budget/finance",
-          command: "save",
-          payload: { ...account, sharing: { [user.id]: "read" } },
-        }),
-      fixture,
-    );
     expect((await read()).total).toBe(0);
-    const edit = await other.evaluate(async (el, id) => {
+    await other.getByRole("button", { name: "Accounts", exact: true }).click();
+    const memberPanel = reader.locator("autonomous-finance-panel");
+    await expect(
+      memberPanel.locator('[data-action="account-new"]'),
+    ).toHaveCount(0);
+    await memberPanel
+      .locator(`[data-action="account-edit"][data-id="${fixture.account.id}"]`)
+      .click();
+    await expect(
+      memberPanel.locator('dialog [name="assigned_user_id"]'),
+    ).toHaveValue(fixture.user.id);
+    await memberPanel.locator('dialog [data-action="close"]').click();
+    const restoreDenied = await memberPanel.evaluate(async (el) => {
       try {
-        await el.hass.callWS({
-          type: "autonomous_budget/finance",
-          command: "transaction",
-          payload: { account_id: id, date: "2026-09-01", amount: "1" },
-        });
+        await el.api("restore", { backup: {} });
         return false;
-      } catch {
-        return true;
+      } catch (error) {
+        return error.message.includes("administrator");
       }
-    }, fixture.account.id);
-    expect(edit).toBe(true);
-    await app.evaluate(
-      async (el, { account }) =>
-        el.hass.callWS({
-          type: "autonomous_budget/finance",
-          command: "save",
-          payload: { ...account, sharing: {} },
-        }),
-      fixture,
-    );
-    expect((await read()).denied).toContain("Access denied");
+    });
+    expect(restoreDenied).toBe(true);
+    const access = await other.evaluate(async (el, account) => {
+      const call = (command, payload) =>
+        el.hass.callWS({ type: "autonomous_budget/finance", command, payload });
+      await call("transaction", {
+        account_id: account.id,
+        date: "2026-09-01",
+        amount: "1",
+      });
+      const updated = await call("save", {
+        kind: "account",
+        id: account.id,
+        name: "Member edited account",
+        assigned_user_id: null,
+      });
+      const denied = [];
+      for (const [command, payload] of [
+        [
+          "save",
+          {
+            kind: "account",
+            name: "Forbidden",
+            currency: "CAD",
+            opening_date: "2026-01-01",
+          },
+        ],
+        [
+          "provider_create_account",
+          { connection_id: "missing", remote_id: "42", account: {} },
+        ],
+        [
+          "save",
+          { kind: "connection", name: "Forbidden", api_key: "fictional" },
+        ],
+      ]) {
+        try {
+          await call(command, payload);
+          denied.push(false);
+        } catch (e) {
+          denied.push(e.message.includes("administrator"));
+        }
+      }
+      return { updated, denied };
+    }, fixture.account);
+    expect(access.updated.name).toBe("Member edited account");
+    expect(access.updated.assigned_user_id).toBeNull();
+    expect(access.denied).toEqual([true, true, true]);
+    expect((await read()).total).toBe(1);
     const exportData = await other.evaluate((el) =>
       el.hass.callWS({ type: "autonomous_budget/finance", command: "export" }),
     );
-    expect(JSON.stringify(exportData)).not.toContain(fixture.account.id);
+    expect(JSON.stringify(exportData)).toContain(fixture.account.id);
     linkedBudget = await app.evaluate(async (el, account) => {
       const view = el.shadowRoot.querySelector("autonomous-budget-view");
       const budget = await el.hass.callWS({
@@ -443,7 +479,7 @@ test("separate Home Assistant user cannot read private accounts and loses revoke
       el.hass.callWS({ type: "autonomous_budget/finance", command: "budgets" }),
     );
     expect(visibleBudgets.some((b) => b.id === linkedBudget.budget.id)).toBe(
-      false,
+      true,
     );
     const hiddenState = await other.evaluate(
       (el, id) => el.hass.states[id],
@@ -476,7 +512,7 @@ test("separate Home Assistant user cannot read private accounts and loses revoke
         ),
       entity,
     );
-    expect(Number(readerState.state)).toBe(321);
+    expect(Number(readerState.state)).toBe(322);
     await app.evaluate(
       (el, account) =>
         el.hass.callWS({
@@ -514,156 +550,154 @@ test("separate Home Assistant user cannot read private accounts and loses revoke
 });
 
 for (const language of ["English", "French"]) {
-  test(`${language} Lunch Flow connection naming and mapping controls`, async ({
+  test(`${language} Lunch Flow linking belongs to account creation`, async ({
     page,
   }) => {
     if (language === "French")
       await page.setViewportSize({ width: 390, height: 844 });
     const app = page.locator("autonomous-budget-panel");
-    await app
-      .getByRole("button", {
+    const navigation = (key) =>
+      app.getByRole("button", {
         name:
-          language === "French" ? "Paramètres financiers" : "Finance settings",
+          language === "French"
+            ? { accounts: "Comptes", settings: "Paramètres financiers" }[key]
+            : { accounts: "Accounts", settings: "Finance settings" }[key],
         exact: true,
-      })
-      .click();
-    const f = page.locator("autonomous-finance-panel");
-    const ids = await f.evaluate(async (el) => {
-      const account = await el.api("save", {
-        kind: "account",
-        name: "Local brokerage",
-        type: "investment",
-        currency: "CAD",
-        opening_date: "2026-01-01",
-        opening_balance: "0",
       });
-      const connection = await el.api("save", {
+    await navigation("accounts").click();
+    const f = page.locator("autonomous-finance-panel");
+    // With no connected provider, account creation has no Lunch Flow fields.
+    await f.evaluate((el) => {
+      el.records = el.records.filter((o) => o.kind !== "connection");
+      el.render();
+    });
+    await f.locator('[data-action="account-new"]').click();
+    await expect(f.locator("dialog")).toBeVisible();
+    await expect(f.locator('dialog [name="assigned_user_id"]')).toBeVisible();
+    await expect(f.locator('dialog [name="lunchflow_connection"]')).toHaveCount(
+      0,
+    );
+    await f.locator('dialog [data-action="close"]').click();
+    const ids = await f.evaluate(async (el) => {
+      const original = el.api.bind(el);
+      const first = await original("save", {
         kind: "connection",
-        name: "Browser bank",
+        name: "First bank",
         api_key: "fictional-browser-key",
       });
-      const original = el.api.bind(el);
+      const second = await original("save", {
+        kind: "connection",
+        name: "Second bank",
+        api_key: "fictional-browser-key",
+      });
       el.testMappings = [];
       el.testProviderCalls = [];
+      el.testAccount = null;
       el.api = async (command, payload, mutate) => {
-        if (command === "provider_accounts")
-          return {
-            accounts: [{ id: 42, name: "Remote brokerage", currency: "CAD" }],
-          };
-        if (command === "provider_map") {
+        if (command === "provider_accounts") {
           el.testProviderCalls.push({ command, payload });
+          return {
+            accounts: [
+              {
+                id: payload.connection_id === first.id ? 41 : 42,
+                name:
+                  payload.connection_id === first.id
+                    ? "Remote first"
+                    : "Remote second",
+                currency: "CAD",
+                institution_name: "Example institution",
+              },
+            ],
+          };
+        }
+        if (command === "provider_create_account") {
+          el.testProviderCalls.push({ command, payload });
+          const account = await original("save", payload.account);
+          el.testAccount = account;
           const mapping = {
             id: "browser-mapping",
             kind: "mapping",
-            connection_id: connection.id,
+            connection_id: payload.connection_id,
             account_id: account.id,
-            remote_id: "42",
-            remote_name: "Remote brokerage",
+            remote_id: payload.remote_id,
+            remote_name: "Remote second",
           };
           el.testMappings = [mapping];
           return mapping;
         }
-        if (command === "portfolio" && payload.account_id === account.id)
-          return {
-            source: "Lunch Flow",
-            as_of: "2026-09-07",
-            positions: [
-              {
-                instrument: {
-                  id: "fixture-btc",
-                  name: "Bitcoin",
-                  currency: "CAD",
-                  instrument_type: "crypto",
-                },
-                quantity: "0.1",
-                cost: null,
-                value: "100",
-                unrealized: null,
-                realized: null,
-                quote: { date: "2026-09-07", source: "Lunch Flow" },
-              },
-            ],
-          };
         if (command === "provider_unmap") {
-          el.testProviderCalls.push({ command, payload });
           el.testMappings = [];
           return {};
         }
         const result = await original(command, payload, mutate);
-        if (command === "snapshot") result.objects.push(...el.testMappings);
+        if (command === "snapshot") {
+          result.objects = result.objects.filter(
+            (o) =>
+              o.kind !== "connection" || [first.id, second.id].includes(o.id),
+          );
+          result.objects.push(...el.testMappings);
+        }
         return result;
       };
       await el.load();
-      return { account: account.id, connection: connection.id };
+      return { first: first.id, second: second.id };
     });
-    const box = f.locator(`[data-connection-id="${ids.connection}"]`);
+    await navigation("settings").click();
+    await expect(f.locator('[data-action="mapping"]')).toHaveCount(0);
+    const connection = f.locator(`[data-connection-id="${ids.second}"]`);
+    await connection.locator('[data-action="connection-rename"]').click();
+    await f.locator('dialog [name="name"]').fill("Renamed second bank");
+    await f.locator('dialog [type="submit"]').click();
+    await expect(connection.locator("h3")).toHaveText("Renamed second bank");
+    await navigation("accounts").click();
+    await f.locator('[data-action="account-new"]').click();
+    const selector = f.locator('dialog [name="lunchflow_connection"]');
+    await expect(selector.locator("option")).toHaveCount(3);
+    await expect(f.locator('dialog [name="lunchflow_remote"]')).toHaveCount(0);
+    await selector.selectOption(ids.first);
+    await f.locator('dialog [name="lunchflow_remote"]').selectOption("41");
+    await expect(f.locator('dialog [name="name"]')).toHaveValue("Remote first");
+    await selector.selectOption(ids.second);
+    await expect(f.locator('dialog [name="lunchflow_remote"]')).toHaveValue("");
+    await expect(
+      f.locator('dialog [name="lunchflow_remote"] option[value="41"]'),
+    ).toHaveCount(0);
+    await f.locator('dialog [name="lunchflow_remote"]').selectOption("42");
+    await f.locator('dialog [name="name"]').fill("Local brokerage");
+    await f.locator('dialog [name="type"]').selectOption("investment");
+    await expect(f.locator('dialog [name="from"]')).toHaveCount(0);
+    await f.locator('dialog [type="submit"]').click();
     await expect(f.locator("dialog")).not.toBeVisible();
-    expect(
-      await f
-        .locator("dialog")
-        .evaluate((el) => el.getBoundingClientRect().height),
-    ).toBe(0);
-    await box.locator('[data-action="connection-rename"]').click();
-    await f.locator('dialog input[name="name"]').fill("Renamed bank");
-    await expect(f.locator('dialog input[name="api_key"]')).toHaveCount(0);
-    await f.locator('dialog button[type="submit"]').click();
-    const renamed = box;
-    await expect(renamed.locator("h3")).toHaveText("Renamed bank");
-    await renamed.locator('[data-action="mapping"]').click();
-    await expect(f.locator('dialog input[type="date"]')).toHaveCount(0);
-    await f.locator('dialog select[name="remote_id"]').selectOption("42");
-    await f
-      .locator('dialog select[name="account_id"]')
-      .selectOption(ids.account);
-    await f.locator('dialog button[type="submit"]').click();
-    const mapping = renamed.locator(".mapping-row");
-    await expect(mapping).toContainText("Remote brokerage");
+    const mapping = f.locator(
+      '.mapping-row[data-mapping-id="browser-mapping"]',
+    );
+    await expect(mapping).toContainText("Renamed second bank");
+    await expect(mapping).toContainText("Remote second");
     await expect(mapping).toContainText("Local brokerage");
-    await expect(mapping).toContainText(
-      language === "French" ? "est relié à" : "is linked to",
-    );
     const calls = await f.evaluate((el) => el.testProviderCalls);
-    expect(calls[0].payload).not.toHaveProperty("from");
-    await renamed.screenshot({
-      path: `/tmp/autonomous-budget-link-${language.toLowerCase()}.png`,
+    const created = calls.find((c) => c.command === "provider_create_account");
+    expect(created.payload).toMatchObject({
+      connection_id: ids.second,
+      remote_id: "42",
+      account: { name: "Local brokerage", type: "investment" },
     });
-    await app
-      .getByRole("button", {
-        name: language === "French" ? "Placements" : "Investments",
-        exact: true,
-      })
-      .click();
-    await f
-      .locator(`[data-action="portfolio-open"][data-id="${ids.account}"]`)
-      .click();
-    await expect(f.locator("tbody").first()).toContainText("Bitcoin");
-    await expect(f.locator("tbody").first()).toContainText("Lunch Flow");
-    await expect(f.locator(".notice")).toContainText(
-      language === "French"
-        ? "Positions synchronisées"
-        : "Positions synchronized",
-    );
-    await app
-      .getByRole("button", {
-        name:
-          language === "French" ? "Paramètres financiers" : "Finance settings",
-        exact: true,
-      })
-      .click();
+    expect(created.payload.account).not.toHaveProperty("lunchflow_connection");
+    await mapping.screenshot({
+      path: `/tmp/autonomous-account-link-${language.toLowerCase()}.png`,
+    });
     await mapping.locator('[data-action="mapping-remove"]').click();
-    await expect(renamed.locator(".mapping-row")).toHaveCount(0);
-    await expect(renamed).toBeVisible();
-    await page.screenshot({
-      path: `/tmp/autonomous-budget-settings-${language.toLowerCase()}.png`,
-      fullPage: true,
-    });
+    await expect(mapping).toHaveCount(0);
     await f.evaluate(async (el, ids) => {
-      await el.api("provider_disconnect", { connection_id: ids.connection });
-      await el.api("save", {
-        kind: "account",
-        id: ids.account,
-        archived: true,
-      });
+      for (const id of [ids.first, ids.second])
+        await el.api("provider_disconnect", { connection_id: id });
+      await el.load();
     }, ids);
+    await f.locator('[data-action="account-new"]').click();
+    await expect(f.locator("dialog")).toBeVisible();
+    await expect(f.locator('dialog [name="assigned_user_id"]')).toBeVisible();
+    await expect(f.locator('dialog [name="lunchflow_connection"]')).toHaveCount(
+      0,
+    );
+    await f.locator('dialog [data-action="close"]').click();
   });
 }

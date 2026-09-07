@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0 — 2026-09-07
+
+- Move Lunch Flow account selection into Accounts → Add account. Show optional connection and remote-account selectors only when a connection is enabled; create and link the account atomically. Support linking existing accounts through Edit account.
+- Display saved links and Unlink controls on account cards and journals. Keep connection credentials, rename and synchronization in Finance settings.
+- Share financial accounts, budgets, transactions, reports, exports and existing connections across authenticated Home Assistant users, including previously private records. Optional Home Assistant user assignment identifies the account holder without restricting access.
+- Reserve creation of accounts, budgets, connections and other financial setup records, plus backup restoration, for Home Assistant administrators. Allow members to record transactions and edit existing data, with role checks on the server.
+- Preserve existing budget calculations, native sensor opt-in and server-side connection secrets. Add account-link rollback coverage and real Home Assistant member-access and bilingual desktop/mobile checks.
+
 ## 1.1.0 — 2026-09-07
 
 - Rename Lunch Flow connections without entering the key again, including disconnected connections.

@@ -1,12 +1,12 @@
-# Version 1.2.0 validation
+# Version 1.2.1 validation
 
 The release is published only after the GitHub CI jobs pass for its commit: Python/frontend checks, real Home Assistant browser tests, hassfest and HACS validation.
 
 ## Automated coverage
 
-- 195 Python tests: existing budget calculations and identifiers; negative and income-day reserves; SQLite migration/rollback; household access and administrator creation guards; exact splits, transfers, refunds, reconciliation; dated exchange rates; average/FIFO positions and cost-preserving security transfers; loan projections/payments; imports and restoration; budget allocations; provider failures and synchronization conflicts.
+- 209 Python tests: existing budget calculations and identifiers; negative and income-day reserves; SQLite migration/rollback; household access and administrator creation guards; exact splits, transfers, refunds, reconciliation; dated exchange rates; average/FIFO positions and cost-preserving security transfers; loan projections/payments; imports and restoration; budget allocations; provider failures and synchronization conflicts.
 - A 100,000-transaction fixture verifies indexed pagination and a small metadata snapshot instead of sending the journal to cards.
-- 17 Playwright tests use a real disposable Home Assistant instance: the existing budget/card flows, desktop/mobile English/French interfaces, account entry/reconciliation, investment/cash updates, HTTP CSV import, household cards, a second authenticated user, member edits and rejected non-administrator creation, opt-in native sensor publication/removal, and English/French account-creation Lunch Flow selection, rename/link/unlink controls. Provider requests in the two connection UI tests are mocked; server tests separately verify provider contracts, atomic account/link creation, rollback, full-history imports, unlink races, valuation and restoration.
+- 17 Playwright tests use a real disposable Home Assistant instance: the existing budget/card flows, desktop/mobile English/French interfaces, account entry/reconciliation, investment/cash updates, HTTP CSV import, household cards, a second authenticated user, member edits and rejected non-administrator creation, opt-in native sensor publication/removal, and English/French account-creation Lunch Flow selection, rename/link/edit-to-disconnect controls. Provider requests in the two connection UI tests are mocked; server tests separately verify provider contracts, atomic account/link creation, rollback, full-history imports, unlink races, immediate and pre-import bank balances, optional CELIAPP-style provider failures, partial sync, valuation and restoration.
 - Python lint/format, syntax checks on all frontend modules, manifest validation and HACS custom-repository checks.
 
 Tests use fictional financial data. Local validation ran on Home Assistant 2026.8.3; CI repeats it on Linux with Python 3.14 and Node.js 22.

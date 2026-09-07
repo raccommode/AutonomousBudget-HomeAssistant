@@ -18,12 +18,25 @@ from .model import ValidationError
 
 
 async def request(hass, url, headers=None, params=None, optional=False):
+    try:
+        return await _request(hass, url, headers, params, optional)
+    except ValidationError:
+        raise
+    except aiohttp.ClientError, TimeoutError, ValueError:
+        if optional:
+            return {"unavailable": True}
+        raise
+
+
+async def _request(hass, url, headers=None, params=None, optional=False):
     runtime = hass.data.setdefault(DOMAIN, {})
     cache = runtime.setdefault("provider_cache", {})
     cooldown = runtime.setdefault("provider_cooldown", {})
     origin = url.split("/")[2]
     now = time.monotonic()
     if cooldown.get(origin, 0) > now:
+        if optional:
+            return {"unavailable": True}
         raise ValidationError("The provider is rate limited. Try again later; the last values were preserved.")
     cache_key = url + json.dumps(params or {}, sort_keys=True)
     cached = cache.get(cache_key) if not headers else None
@@ -39,10 +52,14 @@ async def request(hass, url, headers=None, params=None, optional=False):
             except ValueError:
                 delay = 60
             cooldown[origin] = now + delay
+            if optional:
+                return {"unavailable": True}
             raise ValidationError("The provider is rate limited. Try again later; the last values were preserved.")
         if response.status in (401, 403):
             raise ValidationError("Connection authorization failed. Check your API key and account access.")
         if response.status != 200:
+            if optional:
+                return {"unavailable": True}
             raise ValidationError("The provider is temporarily unavailable.")
         data = await response.json()
         if not headers:
@@ -50,6 +67,34 @@ async def request(hass, url, headers=None, params=None, optional=False):
             if len(cache) > 500:
                 cache.pop(next(iter(cache)))
         return data
+
+
+def store_bank_snapshot(acc, balance_response, holdings=None):
+    """Refresh provider values without adjusting the journal or opening balance."""
+    when = dt_util.now().date().isoformat()
+    bank = balance_response.get("balance") if isinstance(balance_response, dict) else None
+    try:
+        valid = isinstance(bank, dict) and bank.get("currency", "").strip().upper() == acc["currency"]
+        amount = money(bank["amount"], acc["currency"]) if valid else None
+    except ValidationError, KeyError, TypeError, AttributeError:
+        amount = None
+    acc["bank_balance_status"] = "ok" if amount is not None else "unavailable"
+    if amount is not None:
+        acc["bank_balance"] = {"balance": {"amount": amount, "currency": acc["currency"]}}
+        acc["bank_checked"] = when
+    if holdings is not None:
+        from .investments import bank_positions
+
+        try:
+            if not isinstance(holdings, dict) or holdings.get("unavailable"):
+                raise ValidationError("Holdings unavailable.")
+            bank_positions(holdings, acc["id"], when)
+        except ValidationError, KeyError, TypeError, ValueError:
+            acc["bank_holdings_status"] = "unavailable"
+        else:
+            acc.update(
+                bank_holdings=holdings, bank_holdings_date=when, bank_positions_enabled=True, bank_holdings_status="ok"
+            )
 
 
 def context(path, actor, connection_id):
@@ -140,7 +185,7 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
         connection = require(get(db, connection_id, "connection"), actor, True)
         if not connection.get("enabled", True) or not connection.get("api_key"):
             raise ValidationError("This connection is disconnected.")
-        summary = {"added": 0, "updated": 0, "conflicts": 0, "rows": []}
+        summary = {"added": 0, "updated": 0, "conflicts": 0, "rows": [], "warnings": []}
         for batch in batches:
             mapping = get(db, batch["mapping"]["id"], "mapping")
             if any(
@@ -149,6 +194,10 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
             ):
                 raise ValidationError("Connection mapping changed. Preview again.")
             acc = account(db, batch["mapping"]["account_id"], actor, True)
+            if batch.get("sync_error"):
+                summary["warnings"].append(
+                    {"account_id": acc["id"], "name": acc["name"], "message": batch["sync_error"]}
+                )
             for incoming in batch["transactions"]:
                 tx = normalize_transaction(incoming, acc["currency"]) | {"account_id": acc["id"]}
                 if mapping.get("from") and tx["date"] < mapping["from"]:
@@ -237,22 +286,16 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
                 if len(summary["rows"]) < 500:
                     summary["rows"].append(tx | {"possible_matches": matches, "conflict": bool(conflict)})
             if not preview_only:
-                acc["bank_balance"] = batch["balance"]
-                if batch.get("holdings") is not None and not batch["holdings"].get("unavailable"):
-                    from .investments import bank_positions
-
-                    bank_positions(batch["holdings"], acc["id"], dt_util.now().date().isoformat())
-                    acc["bank_holdings"] = batch["holdings"]
-                    acc["bank_holdings_date"] = dt_util.now().date().isoformat()
-                    acc["bank_positions_enabled"] = True
-                acc["bank_checked"] = dt_util.now().date().isoformat()
+                store_bank_snapshot(acc, batch["balance"], batch.get("holdings"))
+                acc["bank_sync_error"] = batch.get("sync_error")
                 put(db, acc)
                 mapping = get(db, batch["mapping"]["id"], "mapping")
-                mapping["initialized"] = True
+                if not batch.get("snapshot_only"):
+                    mapping["initialized"] = True
                 put(db, mapping)
         if not preview_only:
             connection["last_sync"] = dt_util.now().date().isoformat()
-            connection["status"] = "ok"
+            connection["status"] = "partial" if summary["warnings"] else "ok"
             put(db, connection)
             db.execute("UPDATE metadata SET value=value+1 WHERE id='revision'")
             db.execute(
@@ -485,19 +528,15 @@ async def _provider_command(hass, actor, command, p):
         if not remote_account:
             raise ValidationError("Remote account is unavailable.")
 
+        remote_id = str(remote_account["id"])
+        if not remote_id.isdigit():
+            raise ValidationError("Invalid remote account identifier.")
+        balance_response = await request(hass, f"{base}/accounts/{remote_id}/balance", headers, optional=True)
         remote_currency = remote_account.get("currency")
         if not isinstance(remote_currency, str) or not remote_currency.strip():
-            remote_id = str(remote_account["id"])
-            if not remote_id.isdigit():
-                raise ValidationError("Invalid remote account identifier.")
-            balance_response = await request(hass, f"{base}/accounts/{remote_id}/balance", headers)
             bank_balance = balance_response.get("balance") if isinstance(balance_response, dict) else None
             remote_currency = bank_balance.get("currency") if isinstance(bank_balance, dict) else None
-        if not isinstance(remote_currency, str) or not remote_currency.strip():
-            raise ValidationError(
-                "Lunch Flow did not provide this account's currency. Refresh the account in Lunch Flow and try again."
-            )
-        remote_currency = remote_currency.strip().upper()
+        remote_currency = remote_currency.strip().upper() if isinstance(remote_currency, str) else None
 
         def local_target():
             with connect(path) as db:
@@ -519,17 +558,13 @@ async def _provider_command(hass, actor, command, p):
         else:
             target = await hass.async_add_executor_job(local_target)
         holdings = None
-        if target["currency"] != remote_currency:
+        if remote_currency and target["currency"] != remote_currency:
             raise ValidationError("Use an account in the same currency.")
         if target["type"] == "investment":
             remote_id = str(remote_account["id"])
             if not remote_id.isdigit():
                 raise ValidationError("Invalid remote account identifier.")
             holdings = await request(hass, f"{base}/accounts/{remote_id}/holdings", headers, optional=True)
-            if not holdings.get("unavailable"):
-                from .investments import bank_positions
-
-                bank_positions(holdings, target.get("id", "new-account"), dt_util.now().date().isoformat())
 
         def map_account():
             with connect(path) as db:
@@ -546,7 +581,7 @@ async def _provider_command(hass, actor, command, p):
                     if creating
                     else account(db, p["account_id"], actor, True)
                 )
-                if acc["currency"] != remote_currency:
+                if remote_currency and acc["currency"] != remote_currency:
                     raise ValidationError("Use an account in the same currency.")
                 if any(
                     m["account_id"] == acc["id"]
@@ -564,13 +599,8 @@ async def _provider_command(hass, actor, command, p):
                 )
                 if previous and previous["account_id"] != acc["id"]:
                     raise ValidationError("Unlink this remote account before choosing another local account.")
-                if holdings is not None and not holdings.get("unavailable"):
-                    acc.update(
-                        bank_holdings=holdings,
-                        bank_holdings_date=dt_util.now().date().isoformat(),
-                        bank_positions_enabled=True,
-                    )
-                    put(db, acc)
+                store_bank_snapshot(acc, balance_response, holdings)
+                put(db, acc)
                 result = put(
                     db,
                     {
@@ -599,21 +629,29 @@ async def _provider_command(hass, actor, command, p):
         raise ValidationError("Unknown provider operation.")
     batches = []
     for mapping in mappings:
-        if p.get("automatic") and not mapping.get("initialized"):
+        if p.get("account_id") and mapping["account_id"] != p["account_id"]:
             continue
         remote_id = mapping["remote_id"]
         if not remote_id.isdigit():
             raise ValidationError("Invalid remote account identifier.")
-        data = await request(
-            hass,
-            f"{base}/accounts/{remote_id}/transactions",
-            headers,
-            {"include_pending": "true"} | ({"from": mapping["from"]} if mapping.get("from") else {}),
-        )
-        txs = data.get("transactions", [])
-        if not isinstance(txs, list) or int(data.get("total", len(txs))) > len(txs):
-            raise ValidationError("Unexpected transaction response.")
-        bank_balance = await request(hass, f"{base}/accounts/{remote_id}/balance", headers)
+        snapshot_only = bool(p.get("automatic") and not mapping.get("initialized"))
+        txs, sync_error = [], None
+        if not snapshot_only:
+            try:
+                data = await request(
+                    hass,
+                    f"{base}/accounts/{remote_id}/transactions",
+                    headers,
+                    {"include_pending": "true"} | ({"from": mapping["from"]} if mapping.get("from") else {}),
+                )
+                txs = data.get("transactions", [])
+                if not isinstance(txs, list) or int(data.get("total", len(txs))) > len(txs):
+                    raise ValidationError("Unexpected transaction response.")
+            except ValidationError, aiohttp.ClientError, TimeoutError, KeyError, ValueError, TypeError:
+                snapshot_only = True
+                sync_error = "Transactions could not be retrieved. Try synchronizing again."
+                txs = []
+        bank_balance = await request(hass, f"{base}/accounts/{remote_id}/balance", headers, optional=True)
 
         def local_account(account_id=mapping["account_id"]):
             with connect(path) as db:
@@ -625,10 +663,21 @@ async def _provider_command(hass, actor, command, p):
             if local["type"] == "investment"
             else None
         )
-        batches.append({"mapping": mapping, "transactions": txs, "balance": bank_balance, "holdings": holdings})
+        batches.append(
+            {
+                "mapping": mapping,
+                "transactions": txs,
+                "balance": bank_balance,
+                "holdings": holdings,
+                "snapshot_only": snapshot_only,
+                "sync_error": sync_error,
+            }
+        )
     if (
         command == "provider_sync"
-        and any(not m.get("initialized") for m in mappings)
+        and any(
+            not m.get("initialized") for m in mappings if not p.get("account_id") or m["account_id"] == p["account_id"]
+        )
         and not p.get("confirm_initial")
         and not p.get("automatic")
     ):

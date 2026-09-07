@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.2.0";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.2.1";
 
 const names = {
   overview: "Overview",
@@ -265,7 +265,13 @@ export class FinancePanel extends BudgetLiveElement {
   accountLink(acc) {
     const mapping = this.list("mapping").find((m) => m.account_id === acc.id);
     if (!mapping) return "";
-    return `<div class="mapping-row" data-mapping-id="${esc(mapping.id)}"><small translate="no">${esc(this.obj(mapping.connection_id)?.name || "Lunch Flow")}</small><div class="toolbar"><span translate="no">${esc(mapping.remote_name || mapping.remote_id)}</span><span>is linked to</span><strong translate="no">${esc(acc.name)}</strong>${acc.can_write ? this.button("mapping-remove", "Unlink", mapping.id) : ""}</div></div>`;
+    return `<div class="mapping-row" data-mapping-id="${esc(mapping.id)}"><small translate="no">${esc(this.obj(mapping.connection_id)?.name || "Lunch Flow")}</small><div class="toolbar"><span translate="no">${esc(mapping.remote_name || mapping.remote_id)}</span><span>is linked to</span><strong translate="no">${esc(acc.name)}</strong>${this.button("account-sync", "Synchronize", mapping.id)}${!mapping.initialized ? this.button("account-preview", "Review transactions", mapping.id) : ""}</div></div>`;
+  }
+  accountBalance(acc) {
+    const linked = this.list("mapping").some((m) => m.account_id === acc.id);
+    if (!linked)
+      return `<p class="metric">${this.m(acc.balance, acc.currency)}</p>`;
+    return `<span class="muted">Bank balance</span><p class="metric">${this.m(acc.bank_amount, acc.currency)}</p><p class="muted"><span>Ledger balance</span>: ${this.m(acc.balance, acc.currency)}</p>${acc.bank_checked ? `<small><span>Last synchronization</span> ${esc(acc.bank_checked)}</small>` : ""}${acc.bank_balance_status === "unavailable" ? '<p class="error">Bank balance unavailable. The last received value is retained.</p>' : ""}${acc.bank_holdings_status === "unavailable" ? '<p class="muted">Investment holdings unavailable. The account remains connected.</p>' : ""}${acc.bank_sync_error ? '<p class="error">Transactions could not be retrieved. Try synchronizing again.</p>' : ""}`;
   }
   accountConnectionPicker() {
     const form = this.shadowRoot.querySelector("dialog form");
@@ -338,13 +344,13 @@ export class FinancePanel extends BudgetLiveElement {
         .filter((a) => this.showArchived || !a.archived)
         .map(
           (a) =>
-            `<section class="box"><span class="badge">${names[a.type]}</span><h2 translate="no">${esc(a.name)}</h2><p class="metric">${this.m(a.balance, a.currency)}</p><p class="muted" translate="no">${esc(a.institution || "")}</p>${a.assigned_user_name ? `<p class="muted"><span>Assigned to</span>: <span translate="no">${esc(a.assigned_user_name)}</span></p>` : ""}${this.accountLink(a)}${this.button("account-open", "Transactions", a.id)}${a.can_write ? this.button("account-edit", "Edit", a.id) : ""}</section>`,
+            `<section class="box"><span class="badge">${names[a.type]}</span><h2 translate="no">${esc(a.name)}</h2>${this.accountBalance(a)}<p class="muted" translate="no">${esc(a.institution || "")}</p>${a.assigned_user_name ? `<p class="muted"><span>Assigned to</span>: <span translate="no">${esc(a.assigned_user_name)}</span></p>` : ""}${this.accountLink(a)}${this.button("account-open", "Transactions", a.id)}${a.can_write ? this.button("account-edit", "Edit", a.id) : ""}</section>`,
         )
         .join(
           "",
         )}</div>${!all.length ? '<section class="box empty">Create an account to start recording transactions. No budget is required.</section>' : ""}`;
     const journal = this.journal || { rows: [], total: 0 };
-    return `<div class="toolbar">${this.button("accounts-back", "All accounts")}<h2 translate="no">${esc(acc.name)}</h2><strong class="metric">${this.m(acc.balance, acc.currency)}</strong></div><div class="toolbar">${acc.can_write ? this.button("transaction-new", "Add transaction", acc.id, true) + this.button("transfer", "Transfer", acc.id) + this.button("import", "Import", acc.id) + this.button("reconcile", "Reconcile", acc.id) + this.button("account-edit", "Edit account", acc.id) : ""}${this.button("csv", "Export CSV")}${this.button("filter", "Filter")}</div>${this.accountLink(acc)}${acc.bank_balance ? `<div class="notice"><span>Bank balance</span>: <span translate="no">${esc(this.bankBalance(acc.bank_balance, acc.currency))}</span> · <span>Last synchronization</span> ${esc(acc.bank_checked)}</div>` : ""}<section class="box table"><table><thead><tr><th><input type="checkbox" data-action="select-all" aria-label="Select all"></th><th>Date</th><th>Payee</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${journal.rows.map((tx) => `<tr><td><input type="checkbox" name="selected-tx" value="${tx.id}" aria-label="Select transaction"></td><td>${esc(tx.date)}</td><td><span translate="no">${esc(tx.payee || tx.description)}</span><small class="muted" translate="no"> ${esc(tx.payee ? tx.description : "")}</small></td><td translate="no">${esc(tx.splits.map((s) => this.obj(s.category_id)?.name || "—").join(", "))}</td><td class="numbers ${Number(tx.amount) < 0 ? "negative" : "positive"}">${this.m(tx.amount, tx.currency)}</td><td>${names[tx.status]}${tx.historical ? '<small class="muted"> · Before opening balance</small>' : ""}</td><td>${acc.can_write ? this.button("transaction-edit", "Edit", tx.id) : ""}</td></tr>`).join("")}</tbody></table>${!journal.rows.length ? '<p class="empty">No transactions in this view.</p>' : ""}<div class="toolbar"><span>${journal.total}</span><span>transactions</span>${this.button("previous", "Previous")}${this.button("next", "Next")}${acc.can_write ? this.button("bulk", "Edit selection") : ""}</div></section>`;
+    return `<div class="toolbar">${this.button("accounts-back", "All accounts")}<h2 translate="no">${esc(acc.name)}</h2><div>${this.accountBalance(acc)}</div></div><div class="toolbar">${acc.can_write ? this.button("transaction-new", "Add transaction", acc.id, true) + this.button("transfer", "Transfer", acc.id) + this.button("import", "Import", acc.id) + this.button("reconcile", "Reconcile", acc.id) + this.button("account-edit", "Edit account", acc.id) : ""}${this.button("csv", "Export CSV")}${this.button("filter", "Filter")}</div>${this.accountLink(acc)}<section class="box table"><table><thead><tr><th><input type="checkbox" data-action="select-all" aria-label="Select all"></th><th>Date</th><th>Payee</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${journal.rows.map((tx) => `<tr><td><input type="checkbox" name="selected-tx" value="${tx.id}" aria-label="Select transaction"></td><td>${esc(tx.date)}</td><td><span translate="no">${esc(tx.payee || tx.description)}</span><small class="muted" translate="no"> ${esc(tx.payee ? tx.description : "")}</small></td><td translate="no">${esc(tx.splits.map((s) => this.obj(s.category_id)?.name || "—").join(", "))}</td><td class="numbers ${Number(tx.amount) < 0 ? "negative" : "positive"}">${this.m(tx.amount, tx.currency)}</td><td>${names[tx.status]}${tx.historical ? '<small class="muted"> · Before opening balance</small>' : ""}</td><td>${acc.can_write ? this.button("transaction-edit", "Edit", tx.id) : ""}</td></tr>`).join("")}</tbody></table>${!journal.rows.length ? '<p class="empty">No transactions in this view.</p>' : ""}<div class="toolbar"><span>${journal.total}</span><span>transactions</span>${this.button("previous", "Previous")}${this.button("next", "Next")}${acc.can_write ? this.button("bulk", "Edit selection") : ""}</div></section>`;
   }
   investments() {
     const portfolios = this.list("account").filter(
@@ -543,22 +549,30 @@ export class FinancePanel extends BudgetLiveElement {
               opening_balance: "0",
             };
       const linked =
-        a.id && this.list("mapping").some((m) => m.account_id === a.id);
+        a.id && this.list("mapping").find((m) => m.account_id === a.id);
       const connections =
         action !== "pocket" && !linked
           ? this.list("connection").filter((c) => c.enabled !== false)
           : [];
       this.form(
         "Account",
-        (connections.length
-          ? this.field(
-              "lunchflow_connection",
-              "Choose a Lunch Flow connection",
-              "",
-              "text",
-              connections,
-            ) + "<div data-lunchflow-account hidden></div>"
+        (linked
+          ? `<p class="full" translate="no">${esc(this.obj(linked.connection_id)?.name || "Lunch Flow")} · ${esc(linked.remote_name || linked.remote_id)}</p>` +
+            this.check(
+              "unlink_lunchflow",
+              "Disconnect this account from Lunch Flow",
+              false,
+            )
           : "") +
+          (connections.length
+            ? this.field(
+                "lunchflow_connection",
+                "Choose a Lunch Flow connection",
+                "",
+                "text",
+                connections,
+              ) + "<div data-lunchflow-account hidden></div>"
+            : "") +
           this.field("name", "Name", a.name) +
           this.field(
             "type",
@@ -608,7 +622,12 @@ export class FinancePanel extends BudgetLiveElement {
           '<p class="full muted">Published sensor amounts can be read by other Home Assistant users.</p>' +
           '<p class="full muted">All Home Assistant users can view and edit this account. Assignment does not restrict access.</p>',
         async (d) => {
-          const { lunchflow_connection, lunchflow_remote, ...values } = d;
+          const {
+            lunchflow_connection,
+            lunchflow_remote,
+            unlink_lunchflow,
+            ...values
+          } = d;
           const data = {
             ...a,
             ...values,
@@ -632,7 +651,14 @@ export class FinancePanel extends BudgetLiveElement {
                 account: data,
               });
             }
-          } else await save(data);
+          } else {
+            await save(data);
+            if (linked && unlink_lunchflow)
+              await this.api("provider_unmap", {
+                connection_id: linked.connection_id,
+                mapping_id: linked.id,
+              });
+          }
         },
       );
       if (connections.length) this.accountConnectionPicker();
@@ -1522,11 +1548,12 @@ export class FinancePanel extends BudgetLiveElement {
       );
       return;
     }
-    if (action === "mapping-remove") {
+    if (action === "account-sync") {
       const mapping = this.obj(id);
-      await this.api("provider_unmap", {
+      await this.api("provider_sync", {
         connection_id: mapping.connection_id,
-        mapping_id: id,
+        account_id: mapping.account_id,
+        automatic: true,
       });
       await this.load();
       return;
@@ -1579,14 +1606,21 @@ export class FinancePanel extends BudgetLiveElement {
       );
       return;
     }
-    if (action === "sync-preview") {
-      const data = await this.api("provider_preview", { connection_id: id });
+    if (["sync-preview", "account-preview"].includes(action)) {
+      const mapping = action === "account-preview" ? this.obj(id) : null;
+      const payload = mapping
+        ? {
+            connection_id: mapping.connection_id,
+            account_id: mapping.account_id,
+          }
+        : { connection_id: id };
+      const data = await this.api("provider_preview", payload);
       this.form(
         "Preview synchronization",
-        `<p class="full">${data.added} <span>new transactions</span> · ${data.updated} <span>updates</span> · ${data.conflicts} <span>conflicts</span></p><div class="full table"><table>${data.rows.map((r) => `<tr><td>${r.date}</td><td translate="no">${esc(r.description)}</td><td>${esc(r.amount)}</td></tr>`).join("")}</table></div>`,
+        `<div class="full">${(data.warnings || []).map((w) => `<p class="error"><span translate="no">${esc(w.name)}</span>: ${this.t(w.message)}</p>`).join("")}</div><p class="full">${data.added} <span>new transactions</span> · ${data.updated} <span>updates</span> · ${data.conflicts} <span>conflicts</span></p><div class="full table"><table>${data.rows.map((r) => `<tr><td>${r.date}</td><td translate="no">${esc(r.description)}</td><td>${esc(r.amount)}</td></tr>`).join("")}</table></div>`,
         () =>
           this.api("provider_sync", {
-            connection_id: id,
+            ...payload,
             confirm_initial: true,
           }),
         "Synchronize",

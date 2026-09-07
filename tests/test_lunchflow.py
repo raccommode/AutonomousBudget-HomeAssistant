@@ -22,7 +22,12 @@ def engine(tmp_path):
 @pytest.fixture
 def bank(engine, monkeypatch):
     connection = engine.mutate("alice", "save", {"kind": "connection", "name": "Original", "api_key": "fixture-key"})
-    state = {"rows": [], "holdings": {"holdings": []}, "calls": []}
+    state = {
+        "rows": [],
+        "holdings": {"holdings": []},
+        "calls": [],
+        "balance": {"balance": {"amount": 800, "currency": "CAD"}},
+    }
 
     async def executor(fn, *args):
         return await asyncio.to_thread(fn, *args)
@@ -40,7 +45,7 @@ def bank(engine, monkeypatch):
         if url.endswith("/transactions"):
             return {"transactions": state["rows"], "total": len(state["rows"])}
         if url.endswith("/balance"):
-            return {"balance": {"amount": 800, "currency": "CAD"}}
+            return state["balance"]
         if url.endswith("/holdings"):
             return state["holdings"]
         raise AssertionError(url)
@@ -197,7 +202,7 @@ async def test_mapping_cannot_silently_move_to_another_account(engine, bank):
         await command("provider_map", account_id=b["id"], remote_id="42")
 
 
-async def test_foreign_holdings_require_conversion_and_invalid_refresh_rolls_back(engine, bank):
+async def test_foreign_holdings_require_conversion_and_invalid_refresh_preserves_positions(engine, bank):
     _, state, command = bank
     acc = account(engine, type="investment", opening_balance="100")
     state["holdings"] = {
@@ -212,10 +217,11 @@ async def test_foreign_holdings_require_conversion_and_invalid_refresh_rolls_bac
     assert engine.query("alice", "reports", {"currency": "CAD"})["net_worth"] == "300.00"
     state["rows"] = [{"id": "new", "date": "2026-09-01", "amount": -5, "currency": "CAD"}]
     state["holdings"]["holdings"][0]["quantity"] = "NaN"
-    with pytest.raises(ValidationError):
-        await command("provider_sync", confirm_initial=True)
-    assert engine.query("alice", "transactions")["total"] == 0
-    assert engine.query("alice", "reports", {"currency": "CAD"})["net_worth"] == "300.00"
+    await command("provider_sync", confirm_initial=True)
+    assert engine.query("alice", "transactions")["total"] == 1
+    assert engine.query("alice", "reports", {"currency": "CAD"})["net_worth"] == "295.00"
+    with connect(engine.path) as db:
+        assert get(db, acc["id"])["bank_holdings_status"] == "unavailable"
 
 
 def test_manual_requests_cannot_bypass_opening_date_with_historical_flag(engine):
@@ -297,3 +303,149 @@ async def test_linked_creation_rechecks_connection_after_provider_request(engine
             account={"name": "Example", "currency": "CAD", "opening_date": "2026-01-01"},
         )
     assert not any(o["kind"] in ("account", "mapping") for o in engine.query("alice", "snapshot")["objects"])
+
+
+async def test_cash_balance_refreshes_before_initial_journal_confirmation(engine, bank):
+    _, state, command = bank
+    acc = account(engine, opening_balance="0")
+    mapping = await command("provider_map", account_id=acc["id"], remote_id="42")
+    snapshot = engine.query("alice", "account_summary", {"account_id": acc["id"]})
+    assert snapshot["balance"] == "0.00" and snapshot["bank_amount"] == "800.00"
+    state["balance"] = {"balance": {"amount": 950, "currency": "CAD"}}
+    state["rows"] = [{"id": "initial", "date": "2026-09-01", "amount": 50, "currency": "CAD"}]
+    state["calls"].clear()
+    await command("provider_sync", automatic=True)
+    assert not any(url.endswith("/transactions") for url, _ in state["calls"])
+    assert engine.query("alice", "transactions")["total"] == 0
+    assert engine.query("alice", "account_summary", {"account_id": acc["id"]})["bank_amount"] == "950.00"
+    with connect(engine.path) as db:
+        assert not get(db, mapping["id"])["initialized"]
+    await command("provider_preview")
+    await command("provider_sync", confirm_initial=True)
+    await command("provider_sync", automatic=True)
+    assert engine.query("alice", "transactions")["total"] == 1
+    state["balance"] = {"unavailable": True}
+    await command("provider_sync", automatic=True)
+    summary = engine.query("alice", "account_summary", {"account_id": acc["id"]})
+    assert summary["bank_amount"] == "950.00" and summary["bank_balance_status"] == "unavailable"
+    await command("provider_unmap", mapping_id=mapping["id"])
+    assert engine.query("alice", "account_summary", {"account_id": acc["id"]})["bank_amount"] is None
+
+
+async def test_celiapp_links_when_optional_holdings_or_balance_are_unavailable(engine, bank):
+    _, state, command = bank
+    state["holdings"] = {"unavailable": True}
+    state["balance"] = {"unavailable": True}
+    result = await command(
+        "provider_create_account",
+        remote_id="42",
+        account={"name": "CELIAPP", "type": "investment", "currency": "CAD", "opening_date": "2026-01-01"},
+    )
+    with connect(engine.path) as db:
+        acc = get(db, result["account_id"])
+    assert acc["bank_holdings_status"] == "unavailable" and acc["bank_balance_status"] == "unavailable"
+    assert "bank_holdings" not in acc and "bank_balance" not in acc
+    state["balance"] = {"balance": {"amount": 7000, "currency": "CAD"}}
+    await command("provider_sync", automatic=True)
+    assert engine.query("alice", "account_summary", {"account_id": acc["id"]})["bank_amount"] == "7000.00"
+
+
+@pytest.mark.parametrize("status", [400, 404, 422, 429, 500, 502, 503])
+async def test_optional_provider_failure_does_not_block_account_link(monkeypatch, status):
+    class Response:
+        headers = {}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+    response = Response()
+    response.status = status
+    session = SimpleNamespace(get=lambda *args, **kwargs: response)
+    monkeypatch.setattr(providers, "async_get_clientsession", lambda hass: session)
+    assert await providers.request(
+        SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/holdings", optional=True
+    ) == {"unavailable": True}
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_optional_provider_request_still_rejects_invalid_credentials(monkeypatch, status):
+    class Response:
+        headers = {}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+    response = Response()
+    response.status = status
+    monkeypatch.setattr(
+        providers, "async_get_clientsession", lambda hass: SimpleNamespace(get=lambda *args, **kwargs: response)
+    )
+    with pytest.raises(ValidationError, match="authorization"):
+        await providers.request(
+            SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/holdings", optional=True
+        )
+
+
+async def test_optional_snapshot_timeout_is_non_blocking(monkeypatch):
+    class Response:
+        async def __aenter__(self):
+            raise TimeoutError()
+
+        async def __aexit__(self, *args):
+            return False
+
+    monkeypatch.setattr(
+        providers, "async_get_clientsession", lambda hass: SimpleNamespace(get=lambda *args, **kwargs: Response())
+    )
+    assert await providers.request(
+        SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/balance", optional=True
+    ) == {"unavailable": True}
+    with pytest.raises(TimeoutError):
+        await providers.request(SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/transactions")
+
+
+async def test_one_account_transaction_outage_does_not_block_other_accounts(engine, bank, monkeypatch):
+    _, _, command = bank
+    first = account(engine, name="Cash")
+    second = account(engine, name="CELIAPP", type="investment")
+    original = providers.request
+
+    async def request(hass, url, headers=None, params=None, optional=False):
+        if url.endswith("/accounts"):
+            return {
+                "accounts": [
+                    {"id": 42, "name": "Cash", "currency": "CAD"},
+                    {"id": 43, "name": "CELIAPP", "currency": "CAD"},
+                ]
+            }
+        if url.endswith("/43/transactions"):
+            raise ValidationError("The provider is temporarily unavailable.")
+        if url.endswith("/42/transactions"):
+            return {"transactions": [{"id": "valid", "date": "2026-09-01", "amount": "-10", "currency": "CAD"}]}
+        return await original(hass, url, headers, params, optional)
+
+    monkeypatch.setattr(providers, "request", request)
+    await command("provider_map", account_id=first["id"], remote_id="42")
+    failing = await command("provider_map", account_id=second["id"], remote_id="43")
+    result = await command("provider_sync", confirm_initial=True)
+    assert result["added"] == 1 and result["warnings"][0]["account_id"] == second["id"]
+    assert engine.query("alice", "transactions")["total"] == 1
+    assert engine.query("alice", "account_summary", {"account_id": second["id"]})["bank_amount"] == "800.00"
+    with connect(engine.path) as db:
+        assert get(db, second["id"])["bank_sync_error"]
+        assert not get(db, failing["id"])["initialized"]
+
+
+async def test_zero_bank_balance_is_not_replaced_by_the_ledger(engine, bank):
+    _, state, command = bank
+    state["balance"] = {"balance": {"amount": 0, "currency": "CAD"}}
+    acc = account(engine, opening_balance="100")
+    await command("provider_map", account_id=acc["id"], remote_id="42")
+    summary = engine.query("alice", "account_summary", {"account_id": acc["id"]})
+    assert summary["balance"] == "100.00" and summary["bank_amount"] == "0.00" and summary["bank_linked"]

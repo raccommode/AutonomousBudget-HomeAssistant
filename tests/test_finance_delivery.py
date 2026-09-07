@@ -492,14 +492,14 @@ def test_import_api_pages_do_not_truncate_the_committed_file(engine):
         ({}, {"balance": {"amount": 100, "currency": "CAD"}}, None, True),
         ({"currency": None}, {"balance": {"amount": 100, "currency": "CAD"}}, None, True),
         ({"currency": " "}, {"balance": {"amount": 100, "currency": "cad"}}, None, True),
-        ({"currency": " cad "}, {}, None, False),
-        ({"currency": "USD"}, {}, "same currency", False),
+        ({"currency": " cad "}, {}, None, True),
+        ({"currency": "USD"}, {}, "same currency", True),
         ({}, {"balance": {"currency": "USD"}}, "same currency", True),
-        ({}, {"balance": {"amount": 100}}, "did not provide", True),
-        ({}, {"balance": {"currency": None}}, "did not provide", True),
-        ({}, {"balance": {"currency": ""}}, "did not provide", True),
-        ({}, {"balance": None}, "did not provide", True),
-        ({}, {}, "did not provide", True),
+        ({}, {"balance": {"amount": 100}}, None, True),
+        ({}, {"balance": {"currency": None}}, None, True),
+        ({}, {"balance": {"currency": ""}}, None, True),
+        ({}, {"balance": None}, None, True),
+        ({}, {}, None, True),
     ],
 )
 async def test_lunchflow_mapping_currency_fallback(
@@ -517,7 +517,7 @@ async def test_lunchflow_mapping_currency_fallback(
     )
     urls = []
 
-    async def request(hass, url, headers=None):
+    async def request(hass, url, headers=None, optional=False):
         assert headers == {"x-api-key": "fixture-key"}
         urls.append(url)
         if url.endswith("/accounts"):

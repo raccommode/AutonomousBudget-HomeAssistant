@@ -626,6 +626,7 @@ for (const language of ["English", "French"]) {
           return mapping;
         }
         if (command === "provider_unmap") {
+          el.testProviderCalls.push({ command, payload });
           el.testMappings = [];
           return {};
         }
@@ -636,6 +637,15 @@ for (const language of ["English", "French"]) {
               o.kind !== "connection" || [first.id, second.id].includes(o.id),
           );
           result.objects.push(...el.testMappings);
+          for (const mapping of el.testMappings) {
+            const acc = result.objects.find((o) => o.id === mapping.account_id);
+            if (acc)
+              Object.assign(acc, {
+                bank_amount: "800.00",
+                bank_checked: "2026-09-07",
+                bank_balance_status: "ok",
+              });
+          }
         }
         return result;
       };
@@ -685,7 +695,26 @@ for (const language of ["English", "French"]) {
     await mapping.screenshot({
       path: `/tmp/autonomous-account-link-${language.toLowerCase()}.png`,
     });
-    await mapping.locator('[data-action="mapping-remove"]').click();
+    await expect(mapping.locator('[data-action="mapping-remove"]')).toHaveCount(
+      0,
+    );
+    const accountBox = f.locator("section.box").filter({
+      has: page.locator('.mapping-row[data-mapping-id="browser-mapping"]'),
+    });
+    await expect(accountBox.locator(".metric")).toContainText("800");
+    await expect(accountBox).toContainText(
+      language === "French" ? "Solde du journal" : "Ledger balance",
+    );
+    await accountBox.locator('[data-action="account-edit"]').click();
+    await expect(f.locator("dialog")).toBeVisible();
+    await f.locator('dialog [name="unlink_lunchflow"]').check();
+    await f.locator('dialog [data-action="close"]').click();
+    await expect(mapping).toBeVisible();
+    await accountBox.locator('[data-action="account-edit"]').click();
+    await expect(f.locator("dialog")).toBeVisible();
+    await f.locator('dialog [name="unlink_lunchflow"]').check();
+    await f.locator('dialog [type="submit"]').click();
+    await expect(f.locator("dialog")).not.toBeVisible();
     await expect(mapping).toHaveCount(0);
     await f.evaluate(async (el, ids) => {
       for (const id of [ids.first, ids.second])

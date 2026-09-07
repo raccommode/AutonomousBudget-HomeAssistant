@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc } from "./shared.js?v=1.2.0";
+import { BudgetLiveElement, baseCSS, esc } from "./shared.js?v=1.2.1";
 class FinanceCard extends BudgetLiveElement {
   static getConfigElement() {
     return document.createElement("autonomous-finance-card-editor");
@@ -72,8 +72,16 @@ class FinanceCard extends BudgetLiveElement {
           : `${c.show_title ? `<h2 translate="no">${esc(c.title || d.name || this.t("Net worth"))}</h2>` : ""}<div class="metrics">${[
               [
                 "show_balance",
-                c.view === "wealth" ? "Net worth" : "Balance",
-                c.view === "wealth" ? d.net_worth : d.balance,
+                c.view === "wealth"
+                  ? "Net worth"
+                  : d.bank_linked
+                    ? "Bank balance"
+                    : "Balance",
+                c.view === "wealth"
+                  ? d.net_worth
+                  : d.bank_linked
+                    ? d.bank_amount
+                    : d.balance,
               ],
               ["show_income", "Income", d.income],
               ["show_expenses", "Expenses", d.expenses],
@@ -81,11 +89,11 @@ class FinanceCard extends BudgetLiveElement {
               .filter(([flag, , value]) => c[flag] && value !== undefined)
               .map(
                 ([, label, value]) =>
-                  `<div><div class="label">${label}</div><div class="value">${this.money(value, d.currency)}</div></div>`,
+                  `<div><div class="label">${label}</div><div class="value">${value == null ? "—" : this.money(value, d.currency)}</div></div>`,
               )
               .join(
                 "",
-              )}</div>${c.show_status ? `<p class="label">${d.complete === false ? "Incomplete valuation: add the missing exchange rates or prices." : d.bank_checked ? `${this.t("Last synchronization")} ${esc(d.bank_checked)}` : "Private account data"}</p>` : ""}${c.show_link ? '<a href="/autonomous-budget">Open Autonomous Budget</a>' : ""}`
+              )}</div>${c.show_status ? `<p class="label">${d.bank_linked && d.bank_balance_status === "unavailable" ? "Bank balance unavailable. The last received value is retained." : d.complete === false ? "Incomplete valuation: add the missing exchange rates or prices." : d.bank_checked ? `${this.t("Last synchronization")} ${esc(d.bank_checked)}` : "Household account data"}</p>` : ""}${c.show_link ? '<a href="/autonomous-budget">Open Autonomous Budget</a>' : ""}`
     }</ha-card>`;
   }
 }

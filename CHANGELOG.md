@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.1 — 2026-09-07
+
+- Remove Unlink buttons from account cards and journals. Disconnect a Lunch Flow account in Edit account and save; cancelling keeps the link.
+- Fetch the bank balance when linking an account, display it as the explicitly labeled bank balance on account pages and cards, and keep the ledger balance separate. Never rewrite opening balances or create balancing transactions.
+- Refresh bank snapshots for accounts awaiting their first journal-import review. Provide Synchronize and Review transactions actions beside the account link; initial transaction imports still require confirmation.
+- Keep investment account linking available when optional balances or holdings are unsupported, malformed or temporarily unavailable. Retain the last valid snapshot with a visible status; authentication errors still fail explicitly. If the provider supplies no currency, use the explicitly selected local currency and validate incoming amounts before displaying them.
+- Isolate transaction-fetch failures to their account, report partial synchronization and keep refreshing bank snapshots and other accounts.
+- Add regression coverage for Cash balances, CELIAPP-style provider failures, stale and zero balances, confirmation, authentication failures and English/French edit-to-disconnect flows.
+
 ## 1.2.0 — 2026-09-07
 
 - Move Lunch Flow account selection into Accounts → Add account. Show optional connection and remote-account selectors only when a connection is enabled; create and link the account atomically. Support linking existing accounts through Edit account.

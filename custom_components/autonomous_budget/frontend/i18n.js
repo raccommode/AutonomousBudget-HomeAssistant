@@ -1,5 +1,12 @@
 /** English source strings and French UI translations. User content is excluded. */
 const fr = {
+  "Ledger balance": "Solde du journal",
+  "Review transactions": "Vérifier les opérations",
+  "Disconnect this account from Lunch Flow": "Déconnecter ce compte de Lunch Flow",
+  "Bank balance unavailable. The last received value is retained.": "Solde bancaire indisponible. La dernière valeur reçue est conservée.",
+  "Investment holdings unavailable. The account remains connected.": "Positions de placement indisponibles. Le compte reste connecté.",
+  "Transactions could not be retrieved. Try synchronizing again.": "Les opérations n’ont pas pu être récupérées. Réessayez la synchronisation.",
+  "Household account data": "Données du compte du foyer",
   "Import includes selected rows from every page.": "L’import inclut les lignes sélectionnées sur toutes les pages.",
   "Missing exchange rate for linked accounts.": "Taux de change manquant pour les comptes liés.",
   "Balances come from linked accounts.": "Les soldes proviennent des comptes liés.",

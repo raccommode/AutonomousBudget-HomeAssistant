@@ -106,6 +106,17 @@ def get(db, object_id, kind=None):
     return obj
 
 
+def bank_amount(acc):
+    """Return only a provider amount explicitly denominated in the account currency."""
+    value = (acc.get("bank_balance") or {}).get("balance")
+    if not isinstance(value, dict) or value.get("currency") != acc["currency"]:
+        return None
+    try:
+        return money(value["amount"], acc["currency"])
+    except ValidationError, KeyError, TypeError:
+        return None
+
+
 def allowed(obj, actor, write=False):
     """HA authenticates requests; financial records are shared across the household."""
     return bool(actor) and (obj["kind"] != "preferences" or obj.get("owner") == actor)
@@ -358,10 +369,12 @@ class Finance:
                     if visible(db, o, actor)
                 ]
                 records = include_category_parents(db, records)
+                linked = {o["account_id"] for o in records if o["kind"] == "mapping"}
                 for obj in records:
                     obj.pop("api_key", None)
                     if obj["kind"] == "account":
                         obj["balance"] = money(balance(db, obj, p.get("today")), obj["currency"])
+                        obj["bank_amount"] = bank_amount(obj) if obj["id"] in linked else None
                         effective = account(db, obj["id"], actor)
                         obj["sharing"] = effective.get("sharing", {})
                         obj["can_write"] = allowed(effective, actor, True)
@@ -435,8 +448,12 @@ class Finance:
                         "summary": True,
                     },
                 )
-                return {k: acc.get(k) for k in ("id", "name", "currency", "bank_checked")} | {
+                return {k: acc.get(k) for k in ("id", "name", "currency", "bank_checked", "bank_balance_status")} | {
                     "balance": money(balance(db, acc, p.get("today")), acc["currency"]),
+                    "bank_linked": any(m["account_id"] == acc["id"] for m in objects(db, "mapping")),
+                    "bank_amount": bank_amount(acc)
+                    if any(m["account_id"] == acc["id"] for m in objects(db, "mapping"))
+                    else None,
                     "income": totals["income"],
                     "expenses": totals["expenses"],
                     "complete": totals["complete"],
@@ -881,6 +898,10 @@ class Finance:
                 "bank_checked",
                 "bank_holdings_date",
                 "bank_positions_enabled",
+                "bank_balance_status",
+                "bank_holdings_status",
+                "bank_sync_error",
+                "bank_amount",
             ):
                 if old and field in old:
                     obj[field] = old[field]

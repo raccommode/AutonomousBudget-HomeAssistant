@@ -512,3 +512,158 @@ test("separate Home Assistant user cannot read private accounts and loses revoke
     );
   }
 });
+
+for (const language of ["English", "French"]) {
+  test(`${language} Lunch Flow connection naming and mapping controls`, async ({
+    page,
+  }) => {
+    if (language === "French")
+      await page.setViewportSize({ width: 390, height: 844 });
+    const app = page.locator("autonomous-budget-panel");
+    await app
+      .getByRole("button", {
+        name:
+          language === "French" ? "Paramètres financiers" : "Finance settings",
+        exact: true,
+      })
+      .click();
+    const f = page.locator("autonomous-finance-panel");
+    const ids = await f.evaluate(async (el) => {
+      const account = await el.api("save", {
+        kind: "account",
+        name: "Local brokerage",
+        type: "investment",
+        currency: "CAD",
+        opening_date: "2026-01-01",
+        opening_balance: "0",
+      });
+      const connection = await el.api("save", {
+        kind: "connection",
+        name: "Browser bank",
+        api_key: "fictional-browser-key",
+      });
+      const original = el.api.bind(el);
+      el.testMappings = [];
+      el.testProviderCalls = [];
+      el.api = async (command, payload, mutate) => {
+        if (command === "provider_accounts")
+          return {
+            accounts: [{ id: 42, name: "Remote brokerage", currency: "CAD" }],
+          };
+        if (command === "provider_map") {
+          el.testProviderCalls.push({ command, payload });
+          const mapping = {
+            id: "browser-mapping",
+            kind: "mapping",
+            connection_id: connection.id,
+            account_id: account.id,
+            remote_id: "42",
+            remote_name: "Remote brokerage",
+          };
+          el.testMappings = [mapping];
+          return mapping;
+        }
+        if (command === "portfolio" && payload.account_id === account.id)
+          return {
+            source: "Lunch Flow",
+            as_of: "2026-09-07",
+            positions: [
+              {
+                instrument: {
+                  id: "fixture-btc",
+                  name: "Bitcoin",
+                  currency: "CAD",
+                  instrument_type: "crypto",
+                },
+                quantity: "0.1",
+                cost: null,
+                value: "100",
+                unrealized: null,
+                realized: null,
+                quote: { date: "2026-09-07", source: "Lunch Flow" },
+              },
+            ],
+          };
+        if (command === "provider_unmap") {
+          el.testProviderCalls.push({ command, payload });
+          el.testMappings = [];
+          return {};
+        }
+        const result = await original(command, payload, mutate);
+        if (command === "snapshot") result.objects.push(...el.testMappings);
+        return result;
+      };
+      await el.load();
+      return { account: account.id, connection: connection.id };
+    });
+    const box = f.locator(`[data-connection-id="${ids.connection}"]`);
+    await expect(f.locator("dialog")).not.toBeVisible();
+    expect(
+      await f
+        .locator("dialog")
+        .evaluate((el) => el.getBoundingClientRect().height),
+    ).toBe(0);
+    await box.locator('[data-action="connection-rename"]').click();
+    await f.locator('dialog input[name="name"]').fill("Renamed bank");
+    await expect(f.locator('dialog input[name="api_key"]')).toHaveCount(0);
+    await f.locator('dialog button[type="submit"]').click();
+    const renamed = box;
+    await expect(renamed.locator("h3")).toHaveText("Renamed bank");
+    await renamed.locator('[data-action="mapping"]').click();
+    await expect(f.locator('dialog input[type="date"]')).toHaveCount(0);
+    await f.locator('dialog select[name="remote_id"]').selectOption("42");
+    await f
+      .locator('dialog select[name="account_id"]')
+      .selectOption(ids.account);
+    await f.locator('dialog button[type="submit"]').click();
+    const mapping = renamed.locator(".mapping-row");
+    await expect(mapping).toContainText("Remote brokerage");
+    await expect(mapping).toContainText("Local brokerage");
+    await expect(mapping).toContainText(
+      language === "French" ? "est relié à" : "is linked to",
+    );
+    const calls = await f.evaluate((el) => el.testProviderCalls);
+    expect(calls[0].payload).not.toHaveProperty("from");
+    await renamed.screenshot({
+      path: `/tmp/autonomous-budget-link-${language.toLowerCase()}.png`,
+    });
+    await app
+      .getByRole("button", {
+        name: language === "French" ? "Placements" : "Investments",
+        exact: true,
+      })
+      .click();
+    await f
+      .locator(`[data-action="portfolio-open"][data-id="${ids.account}"]`)
+      .click();
+    await expect(f.locator("tbody").first()).toContainText("Bitcoin");
+    await expect(f.locator("tbody").first()).toContainText("Lunch Flow");
+    await expect(f.locator(".notice")).toContainText(
+      language === "French"
+        ? "Positions synchronisées"
+        : "Positions synchronized",
+    );
+    await app
+      .getByRole("button", {
+        name:
+          language === "French" ? "Paramètres financiers" : "Finance settings",
+        exact: true,
+      })
+      .click();
+    await mapping.locator('[data-action="mapping-remove"]').click();
+    await expect(renamed.locator(".mapping-row")).toHaveCount(0);
+    await expect(renamed).toBeVisible();
+    await page.screenshot({
+      path: `/tmp/autonomous-budget-settings-${language.toLowerCase()}.png`,
+      fullPage: true,
+    });
+    await f.evaluate(async (el, ids) => {
+      await el.api("provider_disconnect", { connection_id: ids.connection });
+      await el.api("save", {
+        kind: "account",
+        id: ids.account,
+        archived: true,
+      });
+    }, ids);
+  });
+}

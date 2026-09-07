@@ -84,7 +84,9 @@ def report(db, actor, p):
                     )
                     bucket["transactions"].add(tx["id"])
         if acc["type"] == "investment":
-            holdings = portfolio(db, acc, end)
+            holdings = portfolio(db, acc, end, include_bank=True)
+            if holdings.get("bank_history_missing"):
+                missing.append({"type": "holdings_history", "account_id": acc["id"], "date": end})
             for pos in holdings["positions"]:
                 instrument = pos["instrument"]
                 value = (

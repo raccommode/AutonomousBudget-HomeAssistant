@@ -175,7 +175,7 @@ async def test_personal_api_contract_preview_repeat_failure_disconnect(engine, m
         if url.endswith("/accounts"):
             return {"accounts": [{"id": 42, "currency": "CAD", "name": "Example", "institution_name": "Bank"}]}
         if url.endswith("/transactions"):
-            assert params == {"from": "2026-01-01", "include_pending": "true"}
+            assert params == {"include_pending": "true"}
             return {
                 "transactions": [
                     {

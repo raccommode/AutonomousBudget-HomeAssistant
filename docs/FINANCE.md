@@ -4,7 +4,7 @@ Autonomous Budget 1.0 adds a private financial journal alongside the existing ho
 
 ## Getting started
 
-Open **Autonomous Budget → Accounts → Add account**. Choose checking, savings, cash, credit card, loan, or investment, a currency, and a dated opening balance. Use negative balances for money owed. Record only transactions on or after that opening date, so the opening balance does not count the same transaction twice.
+Open **Autonomous Budget → Accounts → Add account**. Choose checking, savings, cash, credit card, loan, or investment, a currency, and a dated opening balance. Use negative balances for money owed. Manual transactions start on that opening date. Lunch Flow can also retrieve earlier history: those rows are marked **Before opening balance**, remain searchable and categorizable, and do not change the dated opening balance or later reconciliation totals.
 
 Use **Finance settings → Modules and display** to hide modules and choose your reporting currency. Hiding a module keeps its data. The interface follows your Home Assistant profile language (English or French). Names you enter are preserved.
 
@@ -99,12 +99,13 @@ Use a **Personal API** destination from [Lunch Flow](https://www.lunchflow.app/d
 
 1. Create a Lunch Flow API destination and enable the remote accounts you want to expose.
 2. In **Finance settings → Connect Lunch Flow**, save the key. It stays in the server database, is redacted from API responses, and is omitted from JSON exports and audit payloads.
-3. Choose remote accounts, map each to one of your local accounts in the same currency, and set the first import date. Create a local account first if necessary.
-4. Open **Preview synchronization**, inspect the rows, then confirm. Only initialized mappings participate in subsequent daily synchronization; manual refresh is also available.
+3. Choose remote accounts and map each to one of your local accounts in the same currency. The integration requests all available history, with no start-date field. The bank/provider determines how far back it can supply data. Create a local account first if necessary. Existing links keep their previous import boundary until you save the mapping again.
+4. Each saved link appears below its connection as **Remote account is linked to Local account**. Use **Unlink** to stop syncing that pair while retaining imported history. **Rename** changes the connection name without requesting its key again.
+5. Open **Preview synchronization**, inspect the rows, then confirm the journal import. Only initialized mappings participate in subsequent daily synchronization; manual refresh is also available.
 
 Sync deduplicates external IDs, distinguishes pending rows, and proposes matches with nearby manual transactions. Ambiguous matches or missing stable bank IDs become review conflicts. Categories, split lines, notes and reconciliations are preserved. A bank correction that affects reconciled amounts/dates or split totals needs review; no silent adjustment is used to match the received bank balance.
 
-The received bank balance and the calculated journal balance are displayed separately. Investment holdings, where supported by the bank provider, are a comparison snapshot. **Initialize positions** requires explicit security mapping and acquisition costs, works only in an empty portfolio, and creates opening positions rather than fictional buys/sells. Disconnecting removes the key and stops synchronization while retaining history.
+The received bank balance and the calculated journal balance are displayed separately. When linking an investment account, supported provider holdings automatically appear in **Investments**, including stocks and cryptocurrencies. The latest broker snapshot supplies portfolio quantities and values for net worth; it replaces the local position valuation in that portfolio instead of being added on top. It never writes fictional buys or sells. Existing journal operations remain available in Investment history, and realized income/gain reports continue to require actual journal events. Missing cost basis stays unknown; a missing price makes valuation incomplete. Snapshots carry their retrieval date and are not applied to earlier reports. Later synchronizations update the snapshot; provider unavailability preserves the last received positions. **Initialize positions** requires explicit security mapping and acquisition costs, works only in an empty portfolio, and creates opening positions rather than fictional buys/sells. Disconnecting removes the key and stops synchronization while retaining history and the last dated positions. You can still rename the disconnected connection or unlink its accounts.
 
 **Validation status:** automated tests use representative Personal API account, transaction, balance and holdings responses, repeated syncs, pending transitions, conflicts and network failures. A live bank connection has not been validated: that requires a test key and authorized accounts. Provider-specific export and banking behavior should be checked in the initial preview.
 
@@ -140,7 +141,7 @@ The SQLite journal lives at `.storage/autonomous_budget.sqlite`. Writes are atom
 
 Use **Download backup** in Finance settings for a JSON export of accessible records, transactions and authorized budget definitions. Connection keys are excluded. Restore validates the file into an empty financial workspace, remaps identifiers, restores records privately and adds restored budgets separately without replacing existing budgets. Restoring household budget definitions requires an administrator. Reconnect external services and deliberately reapply any sharing or entity-publication permissions afterward.
 
-The application export contains the financial state; a normal Home Assistant configuration backup also preserves the database's full audit history, server configuration and legacy migration files. Protect these backups because they can include server-side connection credentials. Take a Home Assistant backup before upgrading or restoring. A malformed restore rolls back the complete database write.
+Application backups include validated bank position snapshots and historical journal rows, so restoring them preserves these balances and valuations. The application export contains the financial state; a normal Home Assistant configuration backup also preserves the database's full audit history, server configuration and legacy migration files. Protect these backups because they can include server-side connection credentials. Take a Home Assistant backup before upgrading or restoring. A malformed restore rolls back the complete database write.
 
 ## API and implementation
 

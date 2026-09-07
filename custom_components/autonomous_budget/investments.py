@@ -1,14 +1,70 @@
 """Deterministic position replay and loan projections; never place broker orders."""
 
+import hashlib
 import json
 from datetime import date
 from decimal import Decimal
 
-from .finance import account, day, get, money, number, objects, put, read_record, transaction, uid
+from .finance import account, currency, day, get, money, number, objects, put, read_record, transaction, uid
 from .model import ValidationError
 
 
-def portfolio(db, acc, until=None):
+def bank_positions(snapshot, account_id, when):
+    """Read broker positions without inventing journal trades or missing costs."""
+    if not isinstance(snapshot, dict) or not isinstance(snapshot.get("holdings"), list):
+        raise ValidationError("Unexpected holdings response.")
+    rows = []
+    for index, holding in enumerate(snapshot["holdings"]):
+        if not isinstance(holding, dict) or not isinstance(holding.get("security"), dict):
+            raise ValidationError("Unexpected holdings response.")
+        security = holding["security"]
+        unit = currency(holding.get("currency") or security.get("currency") or snapshot.get("currency"))
+        quantity = number(holding.get("quantity"), True)
+        price = number(holding["price"], True) if holding.get("price") is not None else None
+        value = (
+            number(holding["value"])
+            if holding.get("value") is not None
+            else quantity * price
+            if price is not None
+            else None
+        )
+        cost = number(holding["costBasis"], True) if holding.get("costBasis") is not None else None
+        symbol = str(security.get("tickerSymbol") or "")[:100]
+        name = str(security.get("name") or symbol or "Unknown instrument")[:500]
+        identity = str(security.get("isin") or security.get("figi") or symbol or name) + ":" + unit + ":" + str(index)
+        instrument_type = str(security.get("type") or security.get("assetType") or "").lower()
+        if instrument_type not in ("stock", "etf", "fund", "bond", "crypto"):
+            instrument_type = (
+                "crypto"
+                if symbol.upper() in ("BTC", "XBT", "ETH", "SOL", "ADA", "DOGE", "XRP", "LTC")
+                or "bitcoin" in name.lower()
+                else "stock"
+            )
+        instrument = {
+            "id": "bank:" + account_id + ":" + hashlib.sha256(identity.encode()).hexdigest()[:20],
+            "name": name,
+            "symbol": symbol,
+            "isin": security.get("isin"),
+            "currency": unit,
+            "instrument_type": instrument_type,
+        }
+        rows.append(
+            {
+                "instrument": instrument,
+                "quantity": str(quantity),
+                "cost": str(cost) if cost is not None else None,
+                "value": str(value) if value is not None else None,
+                "unrealized": str(value - cost) if value is not None and cost is not None else None,
+                "realized": None,
+                "income": None,
+                "quote": {"date": when, "source": "Lunch Flow", "value": str(price) if price is not None else None},
+                "source": "Lunch Flow",
+            }
+        )
+    return rows
+
+
+def portfolio(db, acc, until=None, *, include_bank=False):
     until = until or date.today().isoformat()
     events = [
         json.loads(row[0])
@@ -115,7 +171,19 @@ def portfolio(db, acc, until=None):
                 "quote": latest,
             }
         )
-    return {"positions": result, "flows": flows, "transfers": transfers}
+    response = {"positions": result, "flows": flows, "transfers": transfers}
+    if include_bank and acc.get("bank_positions_enabled"):
+        when = acc.get("bank_holdings_date") or acc.get("bank_checked")
+        if when and when <= until and acc.get("bank_holdings", {}).get("holdings") is not None:
+            response.update(
+                positions=bank_positions(acc["bank_holdings"], acc["id"], when),
+                ledger_positions=result,
+                source="Lunch Flow",
+                as_of=when,
+            )
+        else:
+            response["bank_history_missing"] = True
+    return response
 
 
 def trade(db, actor, p, *, sequence=None, event_id=None):

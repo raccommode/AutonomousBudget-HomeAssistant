@@ -138,9 +138,9 @@ def balance(db, acc, until=None, cleared=False):
     until = until or date.today().isoformat()
     if acc["opening_date"] > until:
         return Decimal(0)
-    sql = "SELECT amount, status FROM transactions WHERE account_id=? AND date<=?"
+    sql = "SELECT amount, status FROM transactions WHERE account_id=? AND date>=? AND date<=?"
     total = number(acc.get("opening_balance", "0"))
-    for row in db.execute(sql, (acc["id"], until)):
+    for row in db.execute(sql, (acc["id"], acc["opening_date"], until)):
         if row["status"] != "pending" and (not cleared or row["status"] in ("cleared", "reconciled")):
             total += number(row["amount"])
     return total
@@ -238,7 +238,7 @@ def budget_access(db, budgets):
     return access
 
 
-def transaction(db, payload, actor, internal=False):
+def transaction(db, payload, actor, internal=False, *, allow_history=False):
     data = dict(payload)
     acc = account(db, data.get("account_id"), actor, True)
     if acc.get("archived"):
@@ -257,9 +257,13 @@ def transaction(db, payload, actor, internal=False):
     if number(amount) != number(data.get("amount")):
         raise ValidationError("Too many decimal places for the account currency.")
     txdate = day(data.get("date"))
-    if txdate < acc["opening_date"]:
+    if txdate < acc["opening_date"] and not (allow_history or (old and old.get("historical"))):
         raise ValidationError("Transaction date precedes the opening balance.")
-    closed = [r for r in objects(db, "reconciliation") if r["account_id"] == acc["id"] and not r.get("reopened")]
+    closed = (
+        [r for r in objects(db, "reconciliation") if r["account_id"] == acc["id"] and not r.get("reopened")]
+        if txdate >= acc["opening_date"] or (old and old["date"] >= acc["opening_date"])
+        else []
+    )
     if not old and data.get("status") not in ("pending", "reconciled") and any(txdate <= r["date"] for r in closed):
         raise ValidationError("Reopen the reconciliation before adding a transaction in this period.")
     status = data.get("status", "unmarked")
@@ -324,6 +328,7 @@ def transaction(db, payload, actor, internal=False):
         id=data.get("id") or uid(),
         account_id=acc["id"],
         date=txdate,
+        historical=txdate < acc["opening_date"],
         amount=amount,
         currency=acc["currency"],
         status=status,
@@ -472,7 +477,7 @@ class Finance:
                 from .investments import portfolio
 
                 acc = account(db, p["account_id"], actor)
-                return portfolio(db, acc, p.get("to") or p.get("today"))
+                return portfolio(db, acc, p.get("to") or p.get("today"), include_bank=True)
             if command == "bond_schedule":
                 from .investments import bond_schedule
 
@@ -686,7 +691,8 @@ class Finance:
                 "transaction_ids": [],
             }
             for row in db.execute(
-                "SELECT body FROM transactions WHERE account_id=? AND date<=? AND status='cleared'", (acc["id"], end)
+                "SELECT body FROM transactions WHERE account_id=? AND date>=? AND date<=? AND status='cleared'",
+                (acc["id"], acc["opening_date"], end),
             ).fetchall():
                 tx = json.loads(row[0])
                 tx["status"] = "reconciled"
@@ -899,7 +905,13 @@ class Finance:
                 obj["publish_sensors"] = old.get("publish_sensors", False)
             if old and old.get("portfolio_id") != obj.get("portfolio_id"):
                 raise ValidationError("A cash pocket cannot move to another portfolio.")
-            for field in ("bank_balance", "bank_holdings", "bank_checked"):
+            for field in (
+                "bank_balance",
+                "bank_holdings",
+                "bank_checked",
+                "bank_holdings_date",
+                "bank_positions_enabled",
+            ):
                 if old and field in old:
                     obj[field] = old[field]
                 else:
@@ -1029,7 +1041,9 @@ class Finance:
         elif kind == "connection":
             obj["name"] = label(obj.get("name", "Lunch Flow"))
             obj["provider"] = "lunchflow"
-            if not isinstance(obj.get("api_key"), str) or not obj["api_key"].strip():
+            if (not old or obj.get("enabled", True) or "api_key" in p) and (
+                not isinstance(obj.get("api_key"), str) or not obj["api_key"].strip()
+            ):
                 raise ValidationError("A Lunch Flow API key is required.")
             obj["sharing"] = {}
         elif kind == "preferences":

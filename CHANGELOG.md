@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 — 2026-09-07
+
+- Rename Lunch Flow connections without entering the key again, including disconnected connections.
+- Show each remote/local account link below its connection, with an Unlink button that preserves imported history and rejects stale in-flight synchronization results.
+- Request all available history for newly saved mappings and remove the start-date field. Keep transactions before the dated opening balance in the journal without counting them twice in balances or reconciliations.
+- Automatically display supported broker holdings in Investments when linking an investment account, including stocks and cryptocurrencies. Use the latest dated bank positions for valuation without adding them on top of local positions or inventing trades, acquisition costs or historical prices.
+- Preserve bank snapshots and historical journal rows through validated backup/restore; retain the last positions when the provider is unavailable.
+- Hide closed finance dialogs explicitly to prevent an empty white bar. Add English/French connection controls and desktop/mobile browser coverage.
+
 ## 1.0.2 — 2026-09-05
 
 - Restrict “Paid with income” reserve exclusions to expenses and positive income whose frequencies both match the budget’s effective pay period and whose payment dates coincide.

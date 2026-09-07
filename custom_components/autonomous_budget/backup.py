@@ -83,6 +83,15 @@ def restore(db, actor, backup):
                 if kind == "account":
                     data["archived"] = False
                 new = engine.save(db, actor, data)
+                if kind == "account" and record.get("bank_positions_enabled"):
+                    from .finance import day
+                    from .investments import bank_positions
+
+                    when = day(record.get("bank_holdings_date") or record.get("bank_checked"))
+                    bank_positions(record.get("bank_holdings"), record["id"], when)
+                    new.update(
+                        bank_positions_enabled=True, bank_holdings=record["bank_holdings"], bank_holdings_date=when
+                    )
                 if kind == "rate" and record.get("source") in ("manual", "Frankfurter"):
                     new["source"] = record["source"]
                 db.execute("DELETE FROM objects WHERE id=?", (new["id"],))
@@ -148,7 +157,7 @@ def restore(db, actor, backup):
         tx = rewrite(raw)
         if not budget_definitions:
             tx["splits"] = [s | {"budget_id": None, "item_id": None} for s in tx["splits"]]
-        transaction(db, tx, actor, True)
+        transaction(db, tx, actor, True, allow_history=tx.get("historical") is True)
         if tx.get("transfer_id"):
             transfers.setdefault(tx["transfer_id"], []).append(tx)
     for pair in transfers.values():

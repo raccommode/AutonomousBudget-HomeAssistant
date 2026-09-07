@@ -1,4 +1,4 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.0.2";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.1.0";
 
 const names = {
   overview: "Overview",
@@ -49,7 +49,7 @@ const names = {
   once: "One time",
 };
 const CSS = `${baseCSS}
-:host{display:block;background:var(--ab-bg);min-height:100%;padding:28px 36px}.heading,.toolbar,.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.heading{justify-content:space-between;margin-bottom:24px}.toolbar{margin:16px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.box{border:1px solid var(--ab-line);border-radius:14px;background:var(--ab-surface);padding:22px;margin-bottom:18px}.metric{font-size:28px;margin:10px 0;overflow-wrap:anywhere}.muted{color:var(--ab-muted)}.badge{background:var(--ab-pale);border-radius:8px;padding:3px 8px;font-size:12px}.table{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--ab-line);white-space:nowrap}th{color:var(--ab-muted)}.negative{color:#be5141}.positive{color:var(--ab-green)}input,select,textarea{background:var(--ab-surface);color:var(--ab-text);border:1px solid var(--ab-line);border-radius:7px;padding:10px;max-width:100%;min-width:0;font:inherit}label{display:grid;gap:6px;font-size:13px}.form{display:grid;grid-template-columns:1fr 1fr;gap:15px}.full{grid-column:1/-1}.dialog{border:1px solid var(--ab-line);border-radius:15px;background:var(--ab-surface);color:var(--ab-text);padding:25px;width:min(760px,calc(100% - 24px));max-height:90dvh;overflow:auto}.dialog::backdrop{background:#102d2377}.dialog h2{margin-bottom:20px}.dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.error{color:#be5141;margin:12px 0}.empty{padding:45px;text-align:center}.chart{display:flex;align-items:end;gap:14px;height:180px;margin:24px 0}.column{flex:1;min-width:24px;text-align:center;font-size:11px}.bar{background:var(--ab-green);border-radius:5px 5px 0 0;min-height:2px}.splits{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;margin-bottom:8px}.numbers{text-align:right;font-variant-numeric:tabular-nums}.wrap{white-space:normal;max-width:320px}.danger{color:#be5141}.text-link{border:0;background:none;padding:3px;text-decoration:underline}.notice{padding:14px;background:var(--ab-pale);border-radius:8px;margin-bottom:15px}details{margin:15px 0}summary{cursor:pointer;font-weight:600}@media(max-width:650px){:host{padding:18px 12px}.form{grid-template-columns:1fr}.full{grid-column:auto}.splits{grid-template-columns:1fr 1fr}.metric{font-size:23px}}@media print{.toolbar,button,.dialog{display:none!important}:host{background:white;padding:0}.box{break-inside:avoid}.table{overflow:visible}table{font-size:10px}}`;
+:host{display:block;background:var(--ab-bg);min-height:100%;padding:28px 36px}.heading,.toolbar,.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.heading{justify-content:space-between;margin-bottom:24px}.toolbar{margin:16px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.box{border:1px solid var(--ab-line);border-radius:14px;background:var(--ab-surface);padding:22px;margin-bottom:18px}.metric{font-size:28px;margin:10px 0;overflow-wrap:anywhere}.muted{color:var(--ab-muted)}.badge{background:var(--ab-pale);border-radius:8px;padding:3px 8px;font-size:12px}.table{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--ab-line);white-space:nowrap}th{color:var(--ab-muted)}.negative{color:#be5141}.positive{color:var(--ab-green)}input,select,textarea{background:var(--ab-surface);color:var(--ab-text);border:1px solid var(--ab-line);border-radius:7px;padding:10px;max-width:100%;min-width:0;font:inherit}label{display:grid;gap:6px;font-size:13px}.form{display:grid;grid-template-columns:1fr 1fr;gap:15px}.full{grid-column:1/-1}.dialog{border:1px solid var(--ab-line);border-radius:15px;background:var(--ab-surface);color:var(--ab-text);padding:25px;width:min(760px,calc(100% - 24px));max-height:90dvh;overflow:auto}.dialog:not([open]){display:none}.dialog::backdrop{background:#102d2377}.dialog h2{margin-bottom:20px}.dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.error{color:#be5141;margin:12px 0}.empty{padding:45px;text-align:center}.chart{display:flex;align-items:end;gap:14px;height:180px;margin:24px 0}.column{flex:1;min-width:24px;text-align:center;font-size:11px}.bar{background:var(--ab-green);border-radius:5px 5px 0 0;min-height:2px}.splits{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;margin-bottom:8px}.numbers{text-align:right;font-variant-numeric:tabular-nums}.wrap{white-space:normal;max-width:320px}.danger{color:#be5141}.text-link{border:0;background:none;padding:3px;text-decoration:underline}.notice{padding:14px;background:var(--ab-pale);border-radius:8px;margin-bottom:15px}details{margin:15px 0}summary{cursor:pointer;font-weight:600}@media(max-width:650px){:host{padding:18px 12px}.form{grid-template-columns:1fr}.full{grid-column:auto}.splits{grid-template-columns:1fr 1fr}.metric{font-size:23px}}@media print{.toolbar,button,.dialog{display:none!important}:host{background:white;padding:0}.box{break-inside:avoid}.table{overflow:visible}table{font-size:10px}}`;
 
 export class FinancePanel extends BudgetLiveElement {
   constructor() {
@@ -261,14 +261,14 @@ export class FinancePanel extends BudgetLiveElement {
           "",
         )}</div>${!all.length ? '<section class="box empty">Create an account to start recording transactions. No budget is required.</section>' : ""}`;
     const journal = this.journal || { rows: [], total: 0 };
-    return `<div class="toolbar">${this.button("accounts-back", "All accounts")}<h2 translate="no">${esc(acc.name)}</h2><strong class="metric">${this.m(acc.balance, acc.currency)}</strong></div><div class="toolbar">${acc.can_write ? this.button("transaction-new", "Add transaction", acc.id, true) + this.button("transfer", "Transfer", acc.id) + this.button("import", "Import", acc.id) + this.button("reconcile", "Reconcile", acc.id) + this.button("account-edit", "Edit account", acc.id) : ""}${this.button("csv", "Export CSV")}${this.button("filter", "Filter")}</div>${acc.bank_balance ? `<div class="notice"><span>Bank balance</span>: <span translate="no">${esc(this.bankBalance(acc.bank_balance, acc.currency))}</span> · <span>Last synchronization</span> ${esc(acc.bank_checked)}</div>` : ""}<section class="box table"><table><thead><tr><th><input type="checkbox" data-action="select-all" aria-label="Select all"></th><th>Date</th><th>Payee</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${journal.rows.map((tx) => `<tr><td><input type="checkbox" name="selected-tx" value="${tx.id}" aria-label="Select transaction"></td><td>${esc(tx.date)}</td><td><span translate="no">${esc(tx.payee || tx.description)}</span><small class="muted" translate="no"> ${esc(tx.payee ? tx.description : "")}</small></td><td translate="no">${esc(tx.splits.map((s) => this.obj(s.category_id)?.name || "—").join(", "))}</td><td class="numbers ${Number(tx.amount) < 0 ? "negative" : "positive"}">${this.m(tx.amount, tx.currency)}</td><td>${names[tx.status]}</td><td>${acc.can_write ? this.button("transaction-edit", "Edit", tx.id) : ""}</td></tr>`).join("")}</tbody></table>${!journal.rows.length ? '<p class="empty">No transactions in this view.</p>' : ""}<div class="toolbar"><span>${journal.total}</span><span>transactions</span>${this.button("previous", "Previous")}${this.button("next", "Next")}${acc.can_write ? this.button("bulk", "Edit selection") : ""}</div></section>`;
+    return `<div class="toolbar">${this.button("accounts-back", "All accounts")}<h2 translate="no">${esc(acc.name)}</h2><strong class="metric">${this.m(acc.balance, acc.currency)}</strong></div><div class="toolbar">${acc.can_write ? this.button("transaction-new", "Add transaction", acc.id, true) + this.button("transfer", "Transfer", acc.id) + this.button("import", "Import", acc.id) + this.button("reconcile", "Reconcile", acc.id) + this.button("account-edit", "Edit account", acc.id) : ""}${this.button("csv", "Export CSV")}${this.button("filter", "Filter")}</div>${acc.bank_balance ? `<div class="notice"><span>Bank balance</span>: <span translate="no">${esc(this.bankBalance(acc.bank_balance, acc.currency))}</span> · <span>Last synchronization</span> ${esc(acc.bank_checked)}</div>` : ""}<section class="box table"><table><thead><tr><th><input type="checkbox" data-action="select-all" aria-label="Select all"></th><th>Date</th><th>Payee</th><th>Category</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${journal.rows.map((tx) => `<tr><td><input type="checkbox" name="selected-tx" value="${tx.id}" aria-label="Select transaction"></td><td>${esc(tx.date)}</td><td><span translate="no">${esc(tx.payee || tx.description)}</span><small class="muted" translate="no"> ${esc(tx.payee ? tx.description : "")}</small></td><td translate="no">${esc(tx.splits.map((s) => this.obj(s.category_id)?.name || "—").join(", "))}</td><td class="numbers ${Number(tx.amount) < 0 ? "negative" : "positive"}">${this.m(tx.amount, tx.currency)}</td><td>${names[tx.status]}${tx.historical ? '<small class="muted"> · Before opening balance</small>' : ""}</td><td>${acc.can_write ? this.button("transaction-edit", "Edit", tx.id) : ""}</td></tr>`).join("")}</tbody></table>${!journal.rows.length ? '<p class="empty">No transactions in this view.</p>' : ""}<div class="toolbar"><span>${journal.total}</span><span>transactions</span>${this.button("previous", "Previous")}${this.button("next", "Next")}${acc.can_write ? this.button("bulk", "Edit selection") : ""}</div></section>`;
   }
   investments() {
     const portfolios = this.list("account").filter(
       (a) => a.type === "investment" && !a.portfolio_id,
     );
     const acc = this.obj(this.selected);
-    return `<div class="toolbar">${this.button("portfolio-new", "Add portfolio", "", true)}${this.button("instrument-new", "Add instrument")}${this.button("instrument-search", "Search markets")}${this.button("quote", "Set or refresh a quote")}</div><div class="toolbar">${portfolios.map((a) => this.button("portfolio-open", a.name, a.id)).join("")}</div>${acc ? `<section class="box"><h2 translate="no">${esc(acc.name)}</h2><p><span>Cash balance</span> ${this.m(acc.balance, acc.currency)}</p><div class="toolbar">${this.button("trade", "Record an operation", acc.id, true)}${this.button("pocket", "Add currency pocket", acc.id)}${acc.bank_holdings?.holdings?.length ? this.button("holdings", "Bank holdings", acc.id) : ""}</div><div class="table"><table><thead><tr><th>Instrument</th><th>Quantity</th><th>Cost</th><th>Market value</th><th>Unrealized gain</th><th>Realized gain</th><th>Quote date</th><th>Price source</th></tr></thead><tbody>${(this.positions?.positions || []).map((p) => `<tr><td translate="no">${esc(p.instrument.name)}</td><td>${esc(p.quantity)}</td><td>${this.m(p.cost, p.instrument.currency)}</td><td>${this.m(p.value, p.instrument.currency)}</td><td>${this.m(p.unrealized, p.instrument.currency)}</td><td>${this.m(p.realized, p.instrument.currency)}</td><td>${esc(p.quote?.date || "—")}</td><td>${esc(p.quote?.source || "—")}</td></tr>`).join("")}</tbody></table></div></section>` : '<section class="box empty">Choose a portfolio or create your first investment account.</section>'}${acc ? `<section class="box table"><h2>Investment history</h2><table><thead><tr><th>Date</th><th>Instrument</th><th>Operation</th><th>Quantity</th><th>Price</th><th></th></tr></thead><tbody>${(this.trades || []).map((t) => `<tr><td>${esc(t.date)}</td><td translate="no">${esc(this.obj(t.instrument_id)?.name)}</td><td>${esc(names[t.action] || t.action)}</td><td>${esc(t.quantity)}</td><td>${esc(t.price)}</td><td>${this.button("trade-edit", "Edit", t.id)}</td></tr>`).join("")}</tbody></table><div class="toolbar">${this.tradeOffset ? this.button("trades-previous", "Previous") : ""}${this.trades?.length === 100 ? this.button("trades-next", "Next") : ""}</div></section>` : ""}<section class="box"><h2>Instruments</h2>${this.list(
+    return `<div class="toolbar">${this.button("portfolio-new", "Add portfolio", "", true)}${this.button("instrument-new", "Add instrument")}${this.button("instrument-search", "Search markets")}${this.button("quote", "Set or refresh a quote")}</div><div class="toolbar">${portfolios.map((a) => this.button("portfolio-open", a.name, a.id)).join("")}</div>${acc ? `<section class="box"><h2 translate="no">${esc(acc.name)}</h2>${this.positions?.source === "Lunch Flow" ? `<p class="notice"><span>Positions synchronized from Lunch Flow</span> · ${esc(this.positions.as_of)}<br><span>Bank quantities and values are shown automatically. Missing acquisition costs remain unknown.</span></p>` : ""}<p><span>Cash balance</span> ${this.m(acc.balance, acc.currency)}</p><div class="toolbar">${this.button("trade", "Record an operation", acc.id, true)}${this.button("pocket", "Add currency pocket", acc.id)}${acc.bank_holdings?.holdings?.length ? this.button("holdings", "Bank holdings", acc.id) : ""}</div><div class="table"><table><thead><tr><th>Instrument</th><th>Quantity</th><th>Cost</th><th>Market value</th><th>Unrealized gain</th><th>Realized gain</th><th>Quote date</th><th>Price source</th></tr></thead><tbody>${(this.positions?.positions || []).map((p) => `<tr><td translate="no">${esc(p.instrument.name)}</td><td>${esc(p.quantity)}</td><td>${this.m(p.cost, p.instrument.currency)}</td><td>${this.m(p.value, p.instrument.currency)}</td><td>${this.m(p.unrealized, p.instrument.currency)}</td><td>${this.m(p.realized, p.instrument.currency)}</td><td>${esc(p.quote?.date || "—")}</td><td>${esc(p.quote?.source || "—")}</td></tr>`).join("")}</tbody></table></div></section>` : '<section class="box empty">Choose a portfolio or create your first investment account.</section>'}${acc ? `<section class="box table"><h2>Investment history</h2><table><thead><tr><th>Date</th><th>Instrument</th><th>Operation</th><th>Quantity</th><th>Price</th><th></th></tr></thead><tbody>${(this.trades || []).map((t) => `<tr><td>${esc(t.date)}</td><td translate="no">${esc(this.obj(t.instrument_id)?.name)}</td><td>${esc(names[t.action] || t.action)}</td><td>${esc(t.quantity)}</td><td>${esc(t.price)}</td><td>${this.button("trade-edit", "Edit", t.id)}</td></tr>`).join("")}</tbody></table><div class="toolbar">${this.tradeOffset ? this.button("trades-previous", "Previous") : ""}${this.trades?.length === 100 ? this.button("trades-next", "Next") : ""}</div></section>` : ""}<section class="box"><h2>Instruments</h2>${this.list(
       "instrument",
     )
       .map(
@@ -335,7 +335,15 @@ export class FinancePanel extends BudgetLiveElement {
     )
       .map(
         (c) =>
-          `<div class="box"><h3 translate="no">${esc(c.name)}</h3><p>${esc(c.last_sync || "—")} · ${esc(c.status || "")}</p><div class="toolbar">${this.button("mapping", "Choose accounts", c.id)}${this.button("sync-preview", "Preview synchronization", c.id)}${this.button("sync", "Synchronize", c.id)}${this.button("disconnect", "Disconnect", c.id)}</div></div>`,
+          `<div class="box" data-connection-id="${esc(c.id)}"><h3 translate="no">${esc(c.name)}</h3><p>${esc(c.last_sync || "—")} · ${esc(c.status || "")}</p><div class="toolbar">${this.button("connection-rename", "Rename", c.id)}${this.button("mapping", "Choose accounts", c.id)}${this.button("sync-preview", "Preview synchronization", c.id)}${this.button("sync", "Synchronize", c.id)}${this.button("disconnect", "Disconnect", c.id)}</div>${this.list(
+            "mapping",
+          )
+            .filter((m) => m.connection_id === c.id)
+            .map(
+              (m) =>
+                `<div class="toolbar mapping-row" data-mapping-id="${esc(m.id)}"><span translate="no">${esc(m.remote_name || m.remote_id)}</span><span>is linked to</span><strong translate="no">${esc(this.obj(m.account_id)?.name || m.account_id)}</strong>${this.button("mapping-remove", "Unlink", m.id)}</div>`,
+            )
+            .join("")}</div>`,
       )
       .join(
         "",
@@ -1416,6 +1424,24 @@ export class FinancePanel extends BudgetLiveElement {
       );
       return;
     }
+    if (action === "connection-rename") {
+      const connection = this.obj(id);
+      this.form(
+        "Rename connection",
+        this.field("name", "Name", connection.name),
+        (d) => save({ kind: "connection", id, name: d.name }),
+      );
+      return;
+    }
+    if (action === "mapping-remove") {
+      const mapping = this.obj(id);
+      await this.api("provider_unmap", {
+        connection_id: mapping.connection_id,
+        mapping_id: id,
+      });
+      await this.load();
+      return;
+    }
     if (action === "connection") {
       this.form(
         "Connect Lunch Flow",
@@ -1473,7 +1499,10 @@ export class FinancePanel extends BudgetLiveElement {
           "Lunch Flow account",
           "",
           "text",
-          data.accounts.map((a) => [String(a.id), `${a.name} (${a.currency || this.t("Currency checked when linking")})`]),
+          data.accounts.map((a) => [
+            String(a.id),
+            `${a.name} (${a.currency || this.t("Currency checked when linking")})`,
+          ]),
           true,
         ) +
           this.field(
@@ -1484,7 +1513,7 @@ export class FinancePanel extends BudgetLiveElement {
             this.list("account").filter((a) => a.can_write),
             true,
           ) +
-          this.field("from", "Import from", this.today(), "date"),
+          '<p class="full">All available history will be retrieved. Investment holdings appear automatically in Investments.</p>',
         (d) => this.api("provider_map", { ...d, connection_id: id }),
       );
       return;

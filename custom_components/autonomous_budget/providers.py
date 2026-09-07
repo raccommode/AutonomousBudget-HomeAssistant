@@ -13,7 +13,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .database import connect
-from .finance import account, day, get, money, number, objects, put, require, transaction
+from .finance import account, day, get, money, number, objects, put, require, transaction, uid
 from .model import ValidationError
 
 
@@ -144,13 +144,14 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
         for batch in batches:
             mapping = get(db, batch["mapping"]["id"], "mapping")
             if any(
-                mapping.get(k) != batch["mapping"].get(k) for k in ("connection_id", "account_id", "remote_id", "from")
+                mapping.get(k) != batch["mapping"].get(k)
+                for k in ("connection_id", "account_id", "remote_id", "from", "version")
             ):
                 raise ValidationError("Connection mapping changed. Preview again.")
             acc = account(db, batch["mapping"]["account_id"], actor, True)
             for incoming in batch["transactions"]:
                 tx = normalize_transaction(incoming, acc["currency"]) | {"account_id": acc["id"]}
-                if tx["date"] < batch["mapping"].get("from", acc["opening_date"]):
+                if mapping.get("from") and tx["date"] < mapping["from"]:
                     continue
                 row = db.execute(
                     "SELECT body FROM transactions WHERE account_id=? AND external_id=?", (acc["id"], tx["external_id"])
@@ -173,7 +174,7 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
                     ]
                 )
                 differs = old and any(old[k] != tx[k] for k in ("amount", "date"))
-                closed = tx["date"] < acc["opening_date"] or any(
+                closed = (tx["date"] >= acc["opening_date"] or (old and old["date"] >= acc["opening_date"])) and any(
                     r["account_id"] == acc["id"]
                     and not r.get("reopened")
                     and min(tx["date"], old["date"] if old else tx["date"]) <= r["date"]
@@ -228,16 +229,22 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
                             merged["original_amount"] = tx["amount"]
                         if differs:
                             merged["splits"] = [old["splits"][0] | {"amount": tx["amount"]}]
-                        transaction(db, merged, actor, True)
+                        transaction(db, merged, actor, True, allow_history=True)
                 else:
                     summary["added"] += 1
                     if not preview_only:
-                        transaction(db, tx, actor, True)
+                        transaction(db, tx, actor, True, allow_history=True)
                 if len(summary["rows"]) < 500:
                     summary["rows"].append(tx | {"possible_matches": matches, "conflict": bool(conflict)})
             if not preview_only:
                 acc["bank_balance"] = batch["balance"]
-                acc["bank_holdings"] = batch.get("holdings")
+                if batch.get("holdings") is not None and not batch["holdings"].get("unavailable"):
+                    from .investments import bank_positions
+
+                    bank_positions(batch["holdings"], acc["id"], dt_util.now().date().isoformat())
+                    acc["bank_holdings"] = batch["holdings"]
+                    acc["bank_holdings_date"] = dt_util.now().date().isoformat()
+                    acc["bank_positions_enabled"] = True
                 acc["bank_checked"] = dt_util.now().date().isoformat()
                 put(db, acc)
                 mapping = get(db, batch["mapping"]["id"], "mapping")
@@ -381,7 +388,9 @@ async def _provider_command(hass, actor, command, p):
 
         return await hass.async_add_executor_job(save)
     connection, mappings = await hass.async_add_executor_job(context, path, actor, p["connection_id"])
-    if command != "provider_disconnect" and (not connection.get("enabled", True) or not connection.get("api_key")):
+    if command not in ("provider_disconnect", "provider_unmap") and (
+        not connection.get("enabled", True) or not connection.get("api_key")
+    ):
         raise ValidationError("This connection is disconnected.")
     headers = {"x-api-key": connection["api_key"]}
     base = "https://lunchflow.app/api/v1"
@@ -398,6 +407,24 @@ async def _provider_command(hass, actor, command, p):
                 return {}
 
         return await hass.async_add_executor_job(disconnect)
+    if command == "provider_unmap":
+
+        def unmap():
+            with connect(path) as db:
+                db.create_function("audit_actor", 0, lambda: actor)
+                db.execute("BEGIN IMMEDIATE")
+                mapping = require(get(db, p["mapping_id"], "mapping"), actor, True)
+                if mapping["connection_id"] != connection["id"]:
+                    raise ValidationError("Access denied.")
+                db.execute("DELETE FROM objects WHERE id=?", (mapping["id"],))
+                db.execute("UPDATE metadata SET value=value+1 WHERE id='revision'")
+                db.execute(
+                    "INSERT INTO audit(actor,action,body) VALUES (?,?,?)",
+                    (actor, "lunchflow_unmap", json.dumps({"mapping_id": mapping["id"]})),
+                )
+                return {}
+
+        return await hass.async_add_executor_job(unmap)
     if command == "provider_holdings_open":
 
         def initialize_holdings():
@@ -471,8 +498,34 @@ async def _provider_command(hass, actor, command, p):
             )
         remote_currency = remote_currency.strip().upper()
 
+        def local_target():
+            with connect(path) as db:
+                return account(db, p["account_id"], actor, True)
+
+        target = await hass.async_add_executor_job(local_target)
+        holdings = None
+        if target["owner"] != actor or target["currency"] != remote_currency:
+            raise ValidationError("Use your own account in the same currency.")
+        if target["type"] == "investment":
+            remote_id = str(remote_account["id"])
+            if not remote_id.isdigit():
+                raise ValidationError("Invalid remote account identifier.")
+            holdings = await request(hass, f"{base}/accounts/{remote_id}/holdings", headers, optional=True)
+            if not holdings.get("unavailable"):
+                from .investments import bank_positions
+
+                bank_positions(holdings, target["id"], dt_util.now().date().isoformat())
+
         def map_account():
             with connect(path) as db:
+                db.create_function("audit_actor", 0, lambda: actor)
+                db.execute("BEGIN IMMEDIATE")
+                fresh_connection = require(get(db, connection["id"], "connection"), actor, True)
+                if (
+                    not fresh_connection.get("enabled", True)
+                    or fresh_connection.get("api_key") != connection["api_key"]
+                ):
+                    raise ValidationError("This connection is disconnected.")
                 acc = account(db, p["account_id"], actor, True)
                 if acc["owner"] != actor or acc["currency"] != remote_currency:
                     raise ValidationError("Use your own account in the same currency.")
@@ -482,7 +535,24 @@ async def _provider_command(hass, actor, command, p):
                     for m in objects(db, "mapping")
                 ):
                     raise ValidationError("This local account is already connected.")
-                return put(
+                previous = next(
+                    (
+                        m
+                        for m in objects(db, "mapping")
+                        if m["connection_id"] == connection["id"] and str(m["remote_id"]) == str(p["remote_id"])
+                    ),
+                    None,
+                )
+                if previous and previous["account_id"] != acc["id"]:
+                    raise ValidationError("Unlink this remote account before choosing another local account.")
+                if holdings is not None and not holdings.get("unavailable"):
+                    acc.update(
+                        bank_holdings=holdings,
+                        bank_holdings_date=dt_util.now().date().isoformat(),
+                        bank_positions_enabled=True,
+                    )
+                    put(db, acc)
+                result = put(
                     db,
                     {
                         "id": f"mapping:{connection['id']}:{p['remote_id']}",
@@ -491,10 +561,19 @@ async def _provider_command(hass, actor, command, p):
                         "connection_id": connection["id"],
                         "account_id": acc["id"],
                         "remote_id": str(p["remote_id"]),
-                        "from": day(p.get("from") or acc["opening_date"]),
-                        "initialized": False,
+                        "from": None,
+                        "remote_name": str(remote_account.get("name") or p["remote_id"])[:500],
+                        "version": previous.get("version") if previous else uid(),
+                        "initialized": previous.get("initialized", False) if previous else False,
                     },
                 )
+
+                db.execute("UPDATE metadata SET value=value+1 WHERE id='revision'")
+                db.execute(
+                    "INSERT INTO audit(actor,action,body) VALUES (?,?,?)",
+                    (actor, "lunchflow_map", json.dumps({"mapping_id": result["id"], "account_id": acc["id"]})),
+                )
+                return result
 
         return await hass.async_add_executor_job(map_account)
     if command not in ("provider_preview", "provider_sync"):
@@ -510,7 +589,7 @@ async def _provider_command(hass, actor, command, p):
             hass,
             f"{base}/accounts/{remote_id}/transactions",
             headers,
-            {"from": mapping["from"], "include_pending": "true"},
+            {"include_pending": "true"} | ({"from": mapping["from"]} if mapping.get("from") else {}),
         )
         txs = data.get("transactions", [])
         if not isinstance(txs, list) or int(data.get("total", len(txs))) > len(txs):

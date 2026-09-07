@@ -10,6 +10,16 @@ Use **Finance settings → Modules and display** to hide modules and choose your
 
 ![Account journal in Home Assistant](screenshot-accounts.png)
 
+## Finding your way
+
+**Overview** provides a compact summary in your reporting currency, plus shortcuts to individual accounts and budgets. Its totals use the reporting period shown beneath the summary. A missing rate or valuation is called out explicitly.
+
+**Accounts** groups checking, savings, cash, credit, loan and investment accounts separately. Search by account name, institution or assigned user, or narrow the list with the account-type filter. Open **Transactions** for the paginated journal and its search field; use **Filter** for date, status and category criteria.
+
+Account forms group the essential details, optional Lunch Flow connection and dated starting balance. The cost method appears for investment accounts. **Advanced options** contains archiving and optional Home Assistant sensor publication.
+
+**Reports** starts with the period, currency and totals. Expand **Budget comparisons** or **Investment details** as needed; **Detailed breakdowns** includes links to the underlying transactions. Printing includes all sections and restores your previous expanded/collapsed choices afterward.
+
 ## Journal and reconciliation
 
 - Enter a date, signed amount, payee, description, notes, and optional original currency, amount and historical exchange rate. Expenses are negative, receipts positive.
@@ -21,7 +31,7 @@ Use **Finance settings → Modules and display** to hide modules and choose your
 
 **Pending**, **Unmarked**, **Cleared** and **Reconciled** are separate states. Pending bank authorizations do not affect the journal balance. Mark the statement transactions Cleared, then enter the statement's date and closing balance in **Reconcile**. Validation requires an exact zero difference. A closed reconciliation locks its operations. **Reopen** explicitly reopens that statement and subsequent statements for the account; changes are audited. No balancing adjustment is created automatically.
 
-Archived accounts retain their transactions. **Show archived** lets you open them and undo archiving through Edit.
+Use **Edit account → Advanced options → Archived** to archive an account. Archived accounts retain their transactions. **Show archived** lets you open them and undo archiving through Edit.
 
 ## Multicurrency
 

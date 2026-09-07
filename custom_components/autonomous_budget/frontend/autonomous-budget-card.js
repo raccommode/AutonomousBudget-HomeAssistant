@@ -1,4 +1,5 @@
-import { BudgetLiveElement, baseCSS, esc, icon, labels } from "./shared.js?v=1.2.1";
+import { cardCSS } from "./ui.js?v=1.3.0";
+import { BudgetLiveElement, baseCSS, esc, icon, labels } from "./shared.js?v=1.3.0";
 
 // One definition keeps YAML defaults and the visual editor in sync.
 const displayOptions = {
@@ -36,7 +37,7 @@ class AutonomousBudgetCard extends BudgetLiveElement {
     if (!this.config) return;
     const budget = this.config.budget_id ? this.data?.budgets.find((item) => item.id === this.config.budget_id) : this.data?.budgets[0];
     const css = `ha-card{display:block;padding:22px;border-radius:var(--ha-card-border-radius,14px);background:var(--ha-card-background,var(--ab-surface));border:1px solid var(--ab-line);overflow:hidden}header{margin-bottom:20px}.mark{color:var(--ab-green)}.value{font-size:32px;font-weight:600;margin:4px 0 2px;overflow-wrap:anywhere}.totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;padding:17px 0;border-bottom:1px solid var(--ab-line)}.totals b{display:block;margin-top:4px;font-size:16px;overflow-wrap:anywhere}.small{font-size:11px}.categories{display:flex;flex-wrap:wrap;gap:12px;margin-top:17px}.category{flex:1;min-width:85px}.category b{display:block;font-size:12px;margin:5px 0}.due{margin-top:18px;border-top:1px solid var(--ab-line);padding-top:15px}.due-row{padding:7px 0;gap:8px;font-size:12px}.due-row span:first-child{overflow-wrap:anywhere}.due-row .number{white-space:nowrap}a{display:flex;align-items:center;justify-content:space-between;text-decoration:none;font-size:12px;margin-top:20px}h2{font-size:16px}header .muted{font-size:11px}.reserve-note{margin-top:14px}`;
-    if (!budget) { this.shadowRoot.innerHTML = `<style>${baseCSS}${css}</style><ha-card><h2>Autonomous Budget</h2><p class="muted" role="status">${esc(this.error || (this.data ? this.config.budget_id ? "This budget no longer exists. Choose another budget in the card editor." : "Create your first budget in the Autonomous Budget sidebar." : "Loading budgets…"))}</p></ha-card>`; return; }
+    if (!budget) { this.shadowRoot.innerHTML = `<style>${baseCSS}${css}${cardCSS}</style><ha-card><h2>Autonomous Budget</h2><p class="muted" role="status">${esc(this.error || (this.data ? this.config.budget_id ? "This budget no longer exists. Choose another budget in the card editor." : "Create your first budget in the Autonomous Budget sidebar." : "Loading budgets…"))}</p></ha-card>`; return; }
     const planned = this.config.view !== "cashflow";
     const totals = planned ? budget.plan : budget.totals;
     const m = (value) => this.money(value, budget.currency);
@@ -44,7 +45,7 @@ class AutonomousBudgetCard extends BudgetLiveElement {
     const cfg = this.config;
     const shared = budget.kind === "shared" ? totals.expenses : budget.shared_contributions?.[planned ? "planned_amount" : "scheduled_amount"] || "0";
     const metric = (key, label, value) => `<div data-section="${key}"><span class="muted small">${label}</span><b class="number">${m(value)}</b></div>`;
-    this.shadowRoot.innerHTML = `<style>${baseCSS}${css}</style><ha-card>
+    this.shadowRoot.innerHTML = `<style>${baseCSS}${css}${cardCSS}</style><ha-card>
       ${cfg.show_title || cfg.show_period || cfg.show_icon ? `<header class="row between"><div>
         ${cfg.show_title ? `<h2 data-section="show_title"><span translate="no">${esc(cfg.title || budget.name)}</span></h2>` : ""}
         ${cfg.show_period ? `<span data-section="show_period" class="muted">${this.dateLabel(budget.period_start)} – ${this.dateLabel(budget.period_last_day, true)} · ${labels[budget.effective_period]}</span>` : ""}

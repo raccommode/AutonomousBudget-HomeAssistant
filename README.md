@@ -18,7 +18,13 @@ Plan budgets, reconcile accounts, track investments and see your net worth — t
 
 ![Autonomous Budget running inside Home Assistant](docs/screenshot-desktop.png)
 
-## New in 1.0: accounts, investments and wealth
+## New in 1.3: one consistent workspace
+
+Move between budgets, accounts, investments and reports with the same navigation, page structure, buttons and financial formatting. Overview now summarizes your finances with direct access to accounts and budgets. Accounts are grouped by type and searchable; forms reveal advanced options when needed. Reports keep detailed comparisons expandable, with every section included in printing.
+
+The shared design follows Home Assistant light/dark themes and supports English, French and mobile layouts. [Read the interface design guide](docs/DESIGN.md).
+
+## Accounts, investments and wealth
 
 Use **budgets alone**, **accounts and wealth alone**, or connect them. Household account journals, custom expense categories, splits, reconciliation, CSV/OFX/QFX/QIF imports, multicurrency reports, portfolios, property and loan schedules now live beside the existing planner. Optional Lunch Flow synchronization, Yahoo/CoinGecko quotes and Frankfurter exchange rates can be enabled independently.
 
@@ -26,7 +32,7 @@ Open **Overview, Budgets, Accounts, Investments, Assets, Reports or Finance sett
 
 **[Read the accounts and wealth guide →](docs/FINANCE.md)** — setup, import formats, investment operations, access, dashboard cards, backup/restore and Lunch Flow validation status.
 
-![Private account journal](docs/screenshot-accounts.png)
+![Household account journal](docs/screenshot-accounts.png)
 
 ## The budget planner
 
@@ -261,7 +267,7 @@ Data lives in `.storage/autonomous_budget.sqlite`. The upgrade keeps the origina
 
 ## Updating from an earlier version
 
-Download **1.2.1** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+Download **1.3.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
 
 This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
 

@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }, testInfo) => {
     localStorage.setItem('selectedLanguage', JSON.stringify(language));
   }, {tokens, language});
   await page.goto('/autonomous-budget');
-  await expect(page.locator('autonomous-budget-view h1')).toHaveText(language === 'fr' ? 'Votre argent, en un regard.' : 'Your money, in view.');
+  await expect(page.locator('autonomous-budget-view h1')).toHaveText('Budgets');
   await expect(page.locator('#ha-launch-screen')).toHaveCount(0);
 });
 
@@ -108,7 +108,7 @@ test('mobile layout and editable settings', async ({ page }) => {
   await page.setViewportSize({width: 390, height: 844});
   const panel = page.locator('autonomous-budget-view');
   // Close the HA drawer if it persisted from desktop.
-  await expect(panel.getByRole('heading', {name:'Your money, in view.'})).toBeVisible();
+  await expect(panel.getByRole('heading', {name:'Budgets'})).toBeVisible();
   await page.screenshot({path:'docs/screenshot-mobile.png', fullPage:true});
   expect(await panel.evaluate((el) => el.shadowRoot.querySelector('.shell').scrollWidth <= el.clientWidth)).toBeTruthy();
   await expect(panel.locator('.period-nav button')).toHaveCount(2);

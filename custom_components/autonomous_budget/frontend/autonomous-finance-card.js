@@ -1,4 +1,5 @@
-import { BudgetLiveElement, baseCSS, esc } from "./shared.js?v=1.2.1";
+import { cardCSS } from "./ui.js?v=1.3.0";
+import { BudgetLiveElement, baseCSS, esc } from "./shared.js?v=1.3.0";
 class FinanceCard extends BudgetLiveElement {
   static getConfigElement() {
     return document.createElement("autonomous-finance-card-editor");
@@ -64,7 +65,7 @@ class FinanceCard extends BudgetLiveElement {
   render() {
     const c = this.config || {},
       d = this.data;
-    this.shadowRoot.innerHTML = `<style>${baseCSS}ha-card{display:block;padding:22px}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:18px;margin:16px 0}.value{font-size:25px;font-weight:600}.label{font-size:12px;color:var(--ab-muted)}a{display:inline-block;margin-top:15px;color:var(--ab-green)}</style><ha-card>${
+    this.shadowRoot.innerHTML = `<style>${baseCSS}ha-card{display:block;padding:22px}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:18px;margin:16px 0}.value{font-size:25px;font-weight:600}.label{font-size:12px;color:var(--ab-muted)}a{display:inline-block;margin-top:15px;color:var(--ab-green)}${cardCSS}</style><ha-card>${
       this.error
         ? `<p role="alert">${esc(this.error)}</p>`
         : !d

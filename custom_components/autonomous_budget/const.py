@@ -2,7 +2,7 @@
 
 DOMAIN = "autonomous_budget"
 NAME = "Autonomous Budget"
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 STORAGE_VERSION = 1
 SIGNAL_CHANGED = f"{DOMAIN}_changed"
 PANEL_PATH = "autonomous-budget"

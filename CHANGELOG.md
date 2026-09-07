@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 — 2026-09-07
+
+- Unify all seven modules around one navigation bar, page-header pattern, type scale, spacing system, buttons, dialogs, tables and financial status labels. Align dashboard cards with the same visual rules and Home Assistant themes.
+- Give Overview its own compact financial summary with direct links to accounts and individual budgets; request a summary report instead of sending detailed report groups.
+- Group accounts by type and add immediate name/institution search and type filtering. Add a visible journal search field while preserving advanced filters and pagination.
+- Organize account forms into account details, optional bank connection, starting balance and advanced options. Show the cost method only for investment accounts; hide empty error messages and focus the first input.
+- Group financial settings by purpose, show readable connection dates/statuses, and separate backup actions from display preferences.
+- Make budget comparisons and investment report details expandable; include all sections when printing and restore their previous state afterward.
+- Improve narrow-panel and mobile layouts, keep currency codes intact when amounts wrap, add bilingual labels and retain independently configurable card blocks.
+- Add real Home Assistant regression checks for both languages, responsive navigation, account search/filtering, form accessibility, print sections and direct budget navigation. Budget calculations, ledger records and synchronization behavior are preserved.
+
 ## 1.2.1 — 2026-09-07
 
 - Remove Unlink buttons from account cards and journals. Disconnect a Lunch Flow account in Edit account and save; cancelling keeps the link.

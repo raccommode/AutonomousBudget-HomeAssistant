@@ -1,4 +1,4 @@
-import { localize, translate } from "./i18n.js?v=1.2.1";
+import { localize, translate } from "./i18n.js?v=1.3.0";
 /** Local-only shared UI primitives. No remote fonts, scripts, or trackers. */
 export const labels = {
   "": "Use default",
@@ -8,7 +8,7 @@ export const labels = {
   income: "Income", expense: "Expense", personal: "Personal budget", shared: "Shared budget",
 };
 export const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-export const money = (value, currency, language = "en") => new Intl.NumberFormat(language, { style: "currency", currency, currencyDisplay: "code" }).format(Number(value));
+export const money = (value, currency, language = "en") => value === null || value === undefined ? "—" : new Intl.NumberFormat(language, { style: "currency", currency, currencyDisplay: "code" }).format(Number(value)).replaceAll("\u00a0", " ");
 export const dateLabel = (value, year = false, language = "en") => value ? new Intl.DateTimeFormat(language, { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}) }).format(new Date(`${value}T12:00:00`)) : "—";
 export const options = (values, selected) => values.map((value) => `<option value="${esc(value)}" ${value === selected ? "selected" : ""}>${esc(labels[value] || value)}</option>`).join("");
 const paths = {

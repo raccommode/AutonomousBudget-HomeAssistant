@@ -1,5 +1,5 @@
-import { cardCSS } from "./ui.js?v=1.4.0";
-import { BudgetLiveElement, baseCSS, esc, icon, labels } from "./shared.js?v=1.4.0";
+import { cardCSS } from "./ui.js?v=1.4.1";
+import { BudgetLiveElement, baseCSS, esc, icon, labels } from "./shared.js?v=1.4.1";
 
 // One definition keeps YAML defaults and the visual editor in sync.
 const displayOptions = {

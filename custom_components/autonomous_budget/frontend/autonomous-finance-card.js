@@ -1,5 +1,5 @@
-import { cardCSS } from "./ui.js?v=1.4.0";
-import { BudgetLiveElement, baseCSS, esc } from "./shared.js?v=1.4.0";
+import { cardCSS } from "./ui.js?v=1.4.1";
+import { BudgetLiveElement, baseCSS, esc } from "./shared.js?v=1.4.1";
 class FinanceCard extends BudgetLiveElement {
   static getConfigElement() {
     return document.createElement("autonomous-finance-card-editor");

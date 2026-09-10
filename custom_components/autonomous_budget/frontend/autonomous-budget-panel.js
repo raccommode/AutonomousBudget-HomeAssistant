@@ -1,6 +1,6 @@
-import { BudgetLiveElement, baseCSS, esc, icon, labels, options } from "./shared.js?v=1.4.0";
+import { BudgetLiveElement, baseCSS, esc, icon, labels, options } from "./shared.js?v=1.4.1";
 
-import { pageHeader, workspaceCSS } from "./ui.js?v=1.4.0";
+import { pageHeader, workspaceCSS } from "./ui.js?v=1.4.1";
 
 const css = `
 @container(max-width:1100px){.hide-medium{display:none}}
@@ -38,7 +38,7 @@ class AutonomousBudgetPanel extends BudgetLiveElement {
     view.innerHTML = `<div class="shell">
       ${pageHeader("Budgets", "Plan your income, expenses and reserves for each pay period.", `<button class="quiet" data-action="export" aria-label="Export budgets">${icon("download")}<span>Export</span></button>${this.canEdit ? `<button class="quiet" data-action="settings" aria-label="Settings">${icon("settings")}<span>Settings</span></button>` : ""}${this.canCreate ? `<button class="primary" data-action="new-budget">${icon("plus")}New budget</button>` : ""}`)}
       ${budget ? `${this.renderBudgets(budget)}${this.renderBudget(budget)}` : `<section class="box no-budgets empty">${icon("wallet")}<h2>A fresh start for your finances</h2><p class="muted">Create your first budget, then add your income, everyday bills, and future plans.</p>${this.canCreate ? '<button class="primary" data-action="new-budget">Create your first budget</button>' : '<p class="muted">Ask a Home Assistant administrator to create a budget.</p>'}</section>`}
-      <div class="footer row between"><span>Stored in Home Assistant</span><span>Autonomous Budget · 1.4.0</span></div>
+      <div class="footer row between"><span>Stored in Home Assistant</span><span>Autonomous Budget · 1.4.1</span></div>
     </div>`;
   }
   renderBudgets(budget) {

@@ -1,14 +1,21 @@
 """Lunch Flow account lifecycle, full history and broker position snapshots."""
 
 import asyncio
+import logging
 from types import SimpleNamespace
 
 import pytest
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_component import EntityComponent
 from test_finance import account
 
 from custom_components.autonomous_budget import providers
 from custom_components.autonomous_budget.database import connect, initialize
 from custom_components.autonomous_budget.finance import Finance, get
+from custom_components.autonomous_budget.finance_api import budget_context, refresh_context
+from custom_components.autonomous_budget.finance_sensor import FinanceSensor
 from custom_components.autonomous_budget.model import ValidationError
 
 
@@ -332,6 +339,64 @@ async def test_cash_balance_refreshes_before_initial_journal_confirmation(engine
     assert summary["bank_amount"] == "950.00" and summary["bank_balance_status"] == "unavailable"
     await command("provider_unmap", mapping_id=mapping["id"])
     assert engine.query("alice", "account_summary", {"account_id": acc["id"]})["bank_amount"] is None
+
+
+async def test_published_sensor_follows_bank_balance_and_returns_to_ledger_after_unlink(engine, bank, tmp_path):
+    _, state, command = bank
+    state["balance"] = {"balance": {"amount": 524, "currency": "CAD"}}
+    acc = account(engine, name="Shared account", opening_balance="0", publish_sensors=True)
+    mapping = await command("provider_map", account_id=acc["id"], remote_id="42")
+    hass = HomeAssistant(str(tmp_path / "ha"))
+    store = SimpleNamespace(storage=SimpleNamespace(path=engine.path), data={"budgets": []})
+    hass.data["autonomous_budget"] = {"store": store}
+    component = EntityComponent(logging.getLogger(__name__), "sensor", hass)
+    try:
+        dr.async_setup(hass)
+        await dr.async_load(hass)
+        await er.async_load(hass)
+        await refresh_context(hass)
+        sensor = FinanceSensor(store, acc["id"])
+        await component.async_add_entities([sensor])
+        assert hass.states.get(sensor.entity_id).state == "524.00"
+        assert hass.states.get(sensor.entity_id).attributes["unit_of_measurement"] == "CAD"
+        for response, expected in [
+            ({"balance": {"amount": 615.25, "currency": "CAD"}}, "615.25"),
+            ({"unavailable": True}, "615.25"),
+            ({"balance": {"amount": 0, "currency": "CAD"}}, "0.00"),
+            ({"balance": {"amount": -12.50, "currency": "CAD"}}, "-12.50"),
+        ]:
+            state["balance"] = response
+            await command("provider_sync", automatic=True)
+            await refresh_context(hass)
+            await hass.async_block_till_done()
+            assert hass.states.get(sensor.entity_id).state == expected
+            summary = engine.query("alice", "account_summary", {"account_id": acc["id"]})
+            assert summary["bank_amount"] == expected
+            assert summary["balance"] == "0.00"
+        await command("provider_unmap", mapping_id=mapping["id"])
+        await refresh_context(hass)
+        await hass.async_block_till_done()
+        assert hass.states.get(sensor.entity_id).state == "0.00"
+        # Reloading uses the current source and keeps the same unique entity ID.
+        reloaded = FinanceSensor(store, acc["id"])
+        assert reloaded.unique_id == sensor.unique_id
+        assert reloaded.native_value == "0.00"
+    finally:
+        await component._async_reset()
+        await hass.async_stop()
+
+
+async def test_published_bank_sensor_without_snapshot_does_not_fall_back_to_ledger(engine, bank):
+    _, state, command = bank
+    state["balance"] = {"unavailable": True}
+    acc = account(engine, opening_balance="100", publish_sensors=True)
+    account(engine, name="Unpublished account")
+    manual = account(engine, name="Manual account", opening_balance="75", publish_sensors=True)
+    await command("provider_map", account_id=acc["id"], remote_id="42")
+    sensors = {a["id"]: a for a in budget_context(engine.path, [], "2026-09-10")["sensors"]}
+    assert set(sensors) == {acc["id"], manual["id"]}
+    assert sensors[acc["id"]]["balance"] is None
+    assert sensors[manual["id"]]["balance"] == "75.00"
 
 
 async def test_celiapp_links_when_optional_holdings_or_balance_are_unavailable(engine, bank):

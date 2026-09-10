@@ -216,6 +216,8 @@ show_upcoming: true
 
 ### Native sensors and automations
 
+Accounts with **Publish amounts as Home Assistant sensors** enabled expose the same balance as their account page: the latest received bank balance for Lunch Flow accounts, or the journal balance for manual accounts. Bank refreshes update the entity even before the first transaction import. If the bank is temporarily unavailable, the last valid amount is retained; without any valid snapshot the amount is unknown. Disconnecting an account switches its existing entity back to the journal balance. Budget funding and historical reports continue to use the journal.
+
 Each budget is a device with eleven monetary sensors:
 
 | Sensor | Current-period value |
@@ -267,7 +269,7 @@ Data lives in `.storage/autonomous_budget.sqlite`. The upgrade keeps the origina
 
 ## Updating from an earlier version
 
-Download **1.4.0** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
+Download **1.4.1** in HACS, restart Home Assistant, and refresh open browser tabs. Existing budgets become personal budgets by default; shared allocations are opt-in. Existing budgets, entry IDs, amounts, schedules, reserves, and manual balances are preserved. Five planning/reserve sensors are added when upgrading from 0.1.0.
 
 This corrects the category direction in earlier releases: **income has no category; expenses have categories**. Existing income categories are removed automatically. Earlier uncategorized expenses appear as **To categorize**: edit each one and choose Investment, Mandatory, or Optional. No category is guessed for an old expense. These entries continue contributing to total expenses, remaining money, and reserves while awaiting a category; their unassigned amount is shown separately in the breakdown.
 

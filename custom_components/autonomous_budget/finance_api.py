@@ -11,7 +11,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, SIGNAL_CHANGED
 from .database import connect
-from .finance import Finance, balance, convert, get, money, number, objects
+from .finance import Finance, balance, bank_amount, convert, get, money, number, objects
 from .model import ValidationError
 
 
@@ -67,12 +67,15 @@ def budget_context(path, budgets, today):
                         if access.get(key) != merged:
                             access[key] = merged.copy()
                             changed = True
+        # Match account pages: connected accounts publish the last bank snapshot,
+        # including zero or unknown; manual accounts publish their journal balance.
+        bank_linked = {m["account_id"] for m in objects(db, "mapping")}
         sensors = [
             {
                 "id": a["id"],
                 "name": a["name"],
                 "currency": a["currency"],
-                "balance": money(balance(db, a, today), a["currency"]),
+                "balance": bank_amount(a) if a["id"] in bank_linked else money(balance(db, a, today), a["currency"]),
             }
             for a in objects(db, "account")
             if a.get("publish_sensors")

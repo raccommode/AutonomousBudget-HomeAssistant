@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1 — 2026-09-10
+
+- Fix published Home Assistant account sensors showing the journal balance (often zero) while Lunch Flow account pages show a different bank balance. Connected account sensors now use the latest received bank balance, matching the panel; manual and unlinked accounts use the journal balance.
+- Preserve valid zero and negative bank balances and retain the last valid value during provider failures. A connected account without a valid bank snapshot reports an unknown amount instead of a misleading journal balance. Existing entity IDs, journal records and budget funding calculations are preserved.
+- Add regression coverage using real Home Assistant entity states for initial publication, automatic bank refresh before transaction import, provider failures, zero/negative amounts and unlinking, plus missing-snapshot and opt-in checks.
+
 ## 1.4.0 — 2026-09-07
 
 - Personalize Overview to the signed-in Home Assistant user: include only explicitly assigned, active accounts and assigned budgets. Keep all household records accessible from Accounts, Budgets and Reports.

@@ -1,6 +1,6 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.4.0";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.4.1";
 
-import { pageHeader, workspaceCSS } from "./ui.js?v=1.4.0";
+import { pageHeader, workspaceCSS } from "./ui.js?v=1.4.1";
 
 const names = {
   overview: "Overview",

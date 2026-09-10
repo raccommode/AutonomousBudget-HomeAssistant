@@ -139,7 +139,7 @@ test("French finance forms and mobile navigation", async ({ page }) => {
     .getByRole("button", { name: "Ajouter un compte", exact: true })
     .click();
   await expect(f.getByLabel("Solde initial", { exact: true })).toBeVisible();
-  await expect(f.getByLabel("Devise", { exact: true })).toBeVisible();
+  await expect(f.getByLabel("Devise du compte", { exact: true })).toBeVisible();
   await f.getByRole("button", { name: "Annuler", exact: true }).click();
   await expect(f).toHaveJSProperty(
     "scrollWidth",
@@ -755,5 +755,58 @@ for (const language of ["English", "French"]) {
       0,
     );
     await f.locator('dialog [data-action="close"]').click();
+  });
+}
+
+for (const french of [false, true]) {
+  test(`${french ? "French" : "English"} account currency conversion and refresh settings`, async ({ page }) => {
+    if (french) await page.setViewportSize({width:390,height:844});
+    const app = page.locator("autonomous-budget-panel");
+    await app.getByRole("button", {name:french ? "Comptes" : "Accounts", exact:true}).click();
+    const f = page.locator("autonomous-finance-panel");
+    await f.evaluate(async el => {
+      await el.api("save", {kind:"rate",base:"EUR",currency:"CAD",date:el.today(),value:"1.5"});
+    });
+    await f.getByRole("button", {name:french ? "Ajouter un compte" : "Add account",exact:true}).click();
+    const name = "Currency fixture " + Date.now();
+    await f.getByLabel(french ? "Nom" : "Name", {exact:true}).fill(name);
+    const currency = f.getByLabel(french ? "Devise du compte" : "Account currency", {exact:true});
+    await expect(currency).toHaveJSProperty("tagName", "SELECT");
+    await expect(currency.locator("option")).toHaveCount(38);
+    await currency.selectOption("EUR");
+    await f.getByLabel(french ? "Solde initial" : "Opening balance", {exact:true}).fill("100");
+    await f.getByLabel(french ? "Convertir automatiquement" : "Convert automatically", {exact:true}).check();
+    await f.getByLabel(french ? "Convertir en" : "Convert to", {exact:true}).selectOption("CAD");
+    await f.locator("summary").filter({hasText:french ? "Options avancées" : "Advanced options"}).click();
+    await f.locator('[name="publish_sensors"]').check();
+    await currency.scrollIntoViewIfNeeded();
+    await page.screenshot({path:`test-results/currency-${french ? "fr-mobile" : "en-desktop"}.png`,fullPage:true});
+    await f.getByRole("button", {name:french ? "Enregistrer" : "Save",exact:true}).click();
+    await expect(f.locator("dialog")).not.toBeVisible();
+    const row = f.locator("section.account-card").filter({hasText:name});
+    await expect(row.locator(".entity-valuation")).toContainText(french ? "150,00 CAD" : "CAD 150.00");
+    const acc = await f.evaluate((el,name)=>el.records.find(r=>r.name===name),name);
+    await expect.poll(async()=>app.evaluate(async (el,id)=>{
+      const registry=await el.hass.callWS({type:"config/entity_registry/list"});
+      const entity=registry.find(e=>e.unique_id==="finance_"+id);
+      const states=await el.hass.callWS({type:"get_states"});
+      return entity && states.find(s=>s.entity_id===entity.entity_id)?.state;
+    },acc.id)).toBe("150.00");
+    await row.getByRole("button", {name:french ? "Modifier" : "Edit",exact:true}).click();
+    await expect(currency).toHaveValue("EUR");
+    await expect(f.getByLabel(french ? "Convertir en" : "Convert to",{exact:true})).toHaveValue("CAD");
+    await f.getByLabel(french ? "Convertir automatiquement" : "Convert automatically",{exact:true}).uncheck();
+    await f.getByRole("button", {name:french ? "Enregistrer" : "Save",exact:true}).click();
+    await expect(row.locator(".entity-valuation")).toContainText(french ? "100,00 EUR" : "EUR 100.00");
+    const connection=await f.evaluate(el=>el.api("save",{kind:"connection",name:"Refresh fixture",api_key:"fixture-key",auto_refresh:false}));
+    await app.getByRole("button", {name:french ? "Paramètres financiers" : "Finance settings",exact:true}).click();
+    const box=f.locator(`[data-connection-id="${connection.id}"]`);
+    await box.getByRole("button", {name:french ? "Actualisation automatique" : "Automatic refresh",exact:true}).click();
+    await f.getByLabel(french ? "Actualiser Lunch Flow automatiquement" : "Refresh Lunch Flow automatically",{exact:true}).check();
+    await f.getByLabel(french ? "Fréquence d’actualisation" : "Refresh frequency",{exact:true}).selectOption("30");
+    await page.screenshot({path:`test-results/refresh-${french ? "fr-mobile" : "en-desktop"}.png`,fullPage:true});
+    await f.getByRole("button", {name:french ? "Enregistrer" : "Save",exact:true}).click();
+    await expect(box).toContainText("30 minutes");
+    await f.evaluate(async(el,id)=>{await el.api("save",{kind:"connection",id,auto_refresh:false});},connection.id);
   });
 }

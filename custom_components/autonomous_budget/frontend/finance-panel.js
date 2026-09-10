@@ -1,6 +1,6 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.4.1";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.5.0";
 
-import { pageHeader, workspaceCSS } from "./ui.js?v=1.4.1";
+import { pageHeader, workspaceCSS } from "./ui.js?v=1.5.0";
 
 const names = {
   overview: "Overview",
@@ -77,6 +77,11 @@ export class FinancePanel extends BudgetLiveElement {
       }
     });
     this.shadowRoot.addEventListener("change", (e) => {
+      if (e.target.name === "auto_convert") {
+        const section = this.shadowRoot.querySelector("[data-conversion]");
+        section.hidden = !e.target.checked;
+        section.querySelector("select").disabled = !e.target.checked;
+      }
       if (e.target.name === "account-type-filter") {
         this.accountType = e.target.value;
         this.refreshAccountList();
@@ -289,6 +294,11 @@ export class FinancePanel extends BudgetLiveElement {
     choices = null,
     required = false,
   ) {
+    if (!choices && ["currency", "base", "sensor_currency"].includes(key)) {
+      const displayNames = new Intl.DisplayNames([this.language || "en"], { type: "currency" });
+      choices = (this.data?.currencies || ["CAD", "USD", "EUR", "GBP", "CHF", "JPY"]).map((code) => [code, `${code} · ${displayNames.of(code)}`]);
+      required = true;
+    }
     return `<label><span>${esc(text)}</span>${choices ? `<select name="${key}" aria-label="${esc(text)}" ${required ? "required" : ""}>${this.opts(choices, value, !required)}</select>` : `<input name="${key}" aria-label="${esc(text)}" type="${type}" value="${esc(value ?? "")}" ${required ? "required" : ""} ${type === "number" ? 'step="any"' : ""}>`}</label>`;
   }
   check(key, text, value) {
@@ -452,6 +462,8 @@ export class FinancePanel extends BudgetLiveElement {
         "Lunch Flow is limiting requests. Wait before synchronizing again.",
       provider_error:
         "Lunch Flow could not retrieve this data from the bank. Check the bank connection in Lunch Flow and retry.",
+      unauthorized: "The Lunch Flow API key is no longer authorized. Check the connection in Lunch Flow.",
+      forbidden: "Access to this account is denied. Enable the account in the Lunch Flow API destination settings.",
       currency_mismatch:
         "The bank balance currency differs from the local account currency. Check the account mapping.",
     };
@@ -459,9 +471,11 @@ export class FinancePanel extends BudgetLiveElement {
   }
   accountBalance(acc) {
     const linked = this.list("mapping").some((m) => m.account_id === acc.id);
+    const entity = acc.entity_value;
+    const valuation = entity ? `<div class="entity-valuation"><p class="muted"><span>Home Assistant entity value</span>: <strong>${this.m(entity.balance, entity.currency)}</strong></p>${entity.calculation === "cash_and_market_value" ? '<small>Cash + investment market value</small>' : ""}${entity.missing.length ? '<p class="error">Some balances, market values or exchange rates are missing. The total is unknown until they are available.</p>' : ""}${entity.stale ? '<p class="muted small">This value includes the last available bank data.</p>' : ""}</div>` : "";
     if (!linked)
-      return `<p class="metric">${this.m(acc.balance, acc.currency)}</p>`;
-    return `<span class="muted">Bank balance</span><p class="metric">${this.m(acc.bank_amount, acc.currency)}</p><p class="muted"><span>Ledger balance</span>: ${this.m(acc.balance, acc.currency)}</p>${acc.bank_checked ? `<small><span>Last synchronization</span> ${esc(this.dateTime(acc.bank_checked))}</small>` : ""}${acc.bank_balance_status === "unavailable" ? `<p class="error"><span>Bank balance unavailable. The last received value is retained.</span> ${esc(this.providerReason(acc.bank_balance_reason))}</p>` : ""}${acc.bank_holdings_status === "unavailable" ? `<p class="muted"><span>Investment holdings unavailable. The account remains connected.</span> ${esc(this.providerReason(acc.bank_holdings_reason))}</p>` : ""}${acc.bank_sync_error ? '<p class="error">Transactions could not be retrieved. Try synchronizing again.</p>' : ""}`;
+      return `<p class="metric">${this.m(acc.balance, acc.currency)}</p>${valuation}`;
+    return `<span class="muted">Bank balance</span><p class="metric">${this.m(acc.bank_amount, acc.currency)}</p><p class="muted"><span>Ledger balance</span>: ${this.m(acc.balance, acc.currency)}</p>${acc.bank_checked ? `<small><span>Last synchronization</span> ${esc(this.dateTime(acc.bank_checked_at || acc.bank_checked))}</small>` : ""}${acc.bank_balance_status === "unavailable" ? `<p class="error"><span>${acc.bank_amount == null ? "Bank balance unavailable. No valid balance has been received yet." : "Bank balance unavailable. The last received value is retained."}</span> ${esc(this.providerReason(acc.bank_balance_reason))}${acc.bank_balance_http_status ? ` <span translate="no">HTTP ${esc(acc.bank_balance_http_status)}</span>` : ""}</p>` : ""}${acc.bank_holdings_status === "unavailable" ? `<p class="muted"><span>Investment holdings unavailable. The account remains connected.</span> ${esc(this.providerReason(acc.bank_holdings_reason))}</p>` : ""}${acc.bank_sync_error ? '<p class="error">Transactions could not be retrieved. Try synchronizing again.</p>' : ""}${acc.bank_attempted_at ? `<p class="muted small"><span>Last attempt</span>: ${esc(this.dateTime(acc.bank_attempted_at))}</p>` : ""}${valuation}`;
   }
   accountConnectionPicker() {
     const form = this.shadowRoot.querySelector("dialog form");
@@ -604,7 +618,7 @@ export class FinancePanel extends BudgetLiveElement {
     return `<div class="settings-grid"><section class="box"><h2>Modules and display</h2><p class="description">Hide modules without deleting their data.</p>${this.button("preferences", "Customize")}</section>
     <section class="box"><h2>Backup and restore</h2><p class="description">Keep a copy of your financial data. Connection keys are excluded.</p><div class="toolbar">${this.button("backup", "Download backup")}${this.button("restore", "Restore backup")}</div></section>
     <section class="box wide"><div class="section-heading"><h2>Lunch Flow</h2>${this.button("connection", "Connect Lunch Flow")}</div><p class="description">Optional bank synchronization. Your personal API key stays on this Home Assistant server.</p><p class="muted small">Choose a connection when adding or editing an account in Accounts.</p>
-    ${connections.length ? `<div class="connection-grid">${connections.map((c) => `<article class="connection-item" data-connection-id="${esc(c.id)}"><h3 translate="no">${esc(c.name)}</h3><span class="status-pill ${c.enabled !== false ? "cleared" : ""}">${c.enabled !== false ? "Connected" : "Disconnected"}</span><p class="muted small"><span>Last synchronization</span> · ${c.last_sync ? esc(this.dateTime(c.last_sync)) : this.t("Not synchronized yet")}</p>${c.status ? `<p class="muted small">${esc(this.t(names[c.status] || c.status))}</p>` : ""}<div class="toolbar">${this.button("connection-rename", "Rename", c.id)}${c.enabled !== false ? this.button("sync-preview", "Preview synchronization", c.id) + this.button("sync", "Synchronize", c.id) + this.button("disconnect", "Disconnect", c.id) : ""}</div></article>`).join("")}</div>` : '<p class="empty">No bank connection. You can manage your accounts manually.</p>'}</section>
+    ${connections.length ? `<div class="connection-grid">${connections.map((c) => `<article class="connection-item" data-connection-id="${esc(c.id)}"><h3 translate="no">${esc(c.name)}</h3><span class="status-pill ${c.enabled !== false ? "cleared" : ""}">${c.enabled !== false ? "Connected" : "Disconnected"}</span><p class="muted small"><span>Last synchronization</span> · ${c.last_sync ? esc(this.dateTime(c.last_sync_at || c.last_sync)) : this.t("Not synchronized yet")}</p><p class="muted small">${c.auto_refresh !== false ? `${this.t("Automatic refresh")} · ${esc(c.refresh_interval || 60)} ${this.t("minutes")}` : this.t("Automatic refresh disabled")}</p>${c.status ? `<p class="muted small">${esc(this.t(names[c.status] || c.status))}</p>` : ""}<div class="toolbar">${this.button("connection-rename", "Rename", c.id)}${this.button("connection-refresh", "Automatic refresh", c.id)}${c.enabled !== false ? this.button("sync-preview", "Preview synchronization", c.id) + this.button("sync", "Synchronize", c.id) + this.button("disconnect", "Disconnect", c.id) : ""}</div></article>`).join("")}</div>` : '<p class="empty">No bank connection. You can manage your accounts manually.</p>'}</section>
     <section class="box"><h2>Currencies and rates</h2><p class="description">Use dated exchange rates for accurate conversions.</p><div class="toolbar">${this.button("rate", "Add exchange rate")}${this.button("rate-fetch", "Get an exchange rate")}</div>${
       this.list("rate")
         .slice(-12)
@@ -800,7 +814,11 @@ export class FinancePanel extends BudgetLiveElement {
             ]),
             true,
           ) +
-          this.field("currency", "Currency", a.currency, "text", null, true) +
+          this.field("currency", "Account currency", a.currency, "text", null, true) +
+          this.check("auto_convert", "Convert automatically", !!a.sensor_currency) +
+          `<div class="full" data-conversion ${a.sensor_currency ? "" : "hidden"}>` +
+          this.field("sensor_currency", "Convert to", a.sensor_currency || this.unit) +
+          '<p class="muted small">The Home Assistant entity uses this currency. Investment accounts include cash and market values. Exchange rates refresh automatically.</p></div>' +
           this.field("institution", "Institution", a.institution) +
           this.field(
             "assigned_user_id",
@@ -869,12 +887,15 @@ export class FinancePanel extends BudgetLiveElement {
             lunchflow_connection,
             lunchflow_remote,
             unlink_lunchflow,
+            auto_convert,
+            sensor_currency,
             ...values
           } = d;
           const data = {
             ...a,
             ...values,
             kind: "account",
+            sensor_currency: auto_convert ? sensor_currency : null,
             ...(action === "pocket" ? { portfolio_id: id } : {}),
           };
           if (lunchflow_connection) {
@@ -904,6 +925,7 @@ export class FinancePanel extends BudgetLiveElement {
           }
         },
       );
+      this.shadowRoot.querySelector('[name="sensor_currency"]').disabled = !a.sensor_currency;
       if (connections.length) this.accountConnectionPicker();
       return;
     }
@@ -1780,6 +1802,17 @@ export class FinancePanel extends BudgetLiveElement {
             ? save({ ...d, kind: "rate" })
             : this.api("provider_rates", d),
       );
+      return;
+    }
+    if (action === "connection-refresh") {
+      const connection = this.obj(id);
+      this.form("Automatic refresh",
+        this.check("auto_refresh", "Refresh Lunch Flow automatically", connection.auto_refresh !== false) +
+        this.field("refresh_interval", "Refresh frequency", String(connection.refresh_interval || 60), "text", [
+          ["15", this.t("Every 15 minutes")], ["30", this.t("Every 30 minutes")], ["60", this.t("Every hour")],
+          ["180", this.t("Every 3 hours")], ["360", this.t("Every 6 hours")], ["1440", this.t("Every 24 hours")],
+        ], true) + '<p class="full muted">Balances and investments refresh at startup and at the selected interval. The first transaction import still requires review.</p>',
+        (d) => save({ kind: "connection", id, ...d }));
       return;
     }
     if (action === "connection-rename") {

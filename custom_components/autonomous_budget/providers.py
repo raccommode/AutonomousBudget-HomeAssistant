@@ -49,7 +49,11 @@ async def _request(hass, url, headers=None, params=None, optional=False):
     session = async_get_clientsession(hass)
     async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
         if optional and response.status in (404, 501):
-            return {"unavailable": True, "reason": "not_found" if response.status == 404 else "unsupported"}
+            return {
+                "unavailable": True,
+                "reason": "not_found" if response.status == 404 else "unsupported",
+                "http_status": response.status,
+            }
         if response.status == 429:
             try:
                 delay = min(3600, max(60, int(response.headers.get("Retry-After", "60"))))
@@ -57,13 +61,19 @@ async def _request(hass, url, headers=None, params=None, optional=False):
                 delay = 60
             cooldown[origin] = now + delay
             if optional:
-                return {"unavailable": True, "reason": "rate_limited"}
+                return {"unavailable": True, "reason": "rate_limited", "http_status": 429}
             raise ValidationError("The provider is rate limited. Try again later; the last values were preserved.")
         if response.status in (401, 403):
+            if optional:
+                return {
+                    "unavailable": True,
+                    "reason": "unauthorized" if response.status == 401 else "forbidden",
+                    "http_status": response.status,
+                }
             raise ValidationError("Connection authorization failed. Check your API key and account access.")
         if response.status != 200:
             if optional:
-                return {"unavailable": True, "reason": "provider_error"}
+                return {"unavailable": True, "reason": "provider_error", "http_status": response.status}
             raise ValidationError("The provider is temporarily unavailable.")
         data = await response.json()
         if not headers:
@@ -76,6 +86,10 @@ async def _request(hass, url, headers=None, params=None, optional=False):
 def store_bank_snapshot(acc, balance_response, holdings=None):
     """Refresh provider values without adjusting the journal or opening balance."""
     when = dt_util.now().date().isoformat()
+    acc["bank_attempted_at"] = dt_util.utcnow().isoformat()
+    acc["bank_balance_http_status"] = (
+        balance_response.get("http_status") if isinstance(balance_response, dict) else None
+    )
     bank = balance_response.get("balance") if isinstance(balance_response, dict) else None
     try:
         valid = isinstance(bank, dict) and bank.get("currency", "").strip().upper() == acc["currency"]
@@ -96,6 +110,7 @@ def store_bank_snapshot(acc, balance_response, holdings=None):
     if amount is not None:
         acc["bank_balance"] = {"balance": {"amount": amount, "currency": acc["currency"]}}
         acc["bank_checked"] = when
+        acc["bank_checked_at"] = dt_util.utcnow().isoformat()
     if holdings is not None:
         from .investments import bank_positions
 
@@ -330,6 +345,7 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
                 put(db, mapping)
         if not preview_only:
             connection["last_sync"] = dt_util.now().date().isoformat()
+            connection["last_sync_at"] = dt_util.utcnow().isoformat()
             connection["status"] = "partial" if summary["warnings"] else "ok"
             put(db, connection)
             db.execute("UPDATE metadata SET value=value+1 WHERE id='revision'")
@@ -342,8 +358,12 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
 
 async def provider_command(hass, actor, command, p):
     try:
+        if command in ("provider_sync", "provider_preview"):
+            locks = hass.data.setdefault(DOMAIN, {}).setdefault("sync_locks", {})
+            async with locks.setdefault(p.get("connection_id"), asyncio.Lock()):
+                return await _provider_command(hass, actor, command, p)
         return await _provider_command(hass, actor, command, p)
-    except ValidationError, aiohttp.ClientError, TimeoutError, KeyError, ValueError:
+    except ValidationError, aiohttp.ClientError, TimeoutError, KeyError, ValueError, TypeError:
         if command in ("provider_quote", "provider_sync", "provider_preview") and p.get("source") != "manual":
 
             def mark_failure():
@@ -722,12 +742,72 @@ async def _provider_command(hass, actor, command, p):
     )
 
 
+async def refresh_account_rates(hass, account_id=None):
+    """Fetch only currency pairs needed by enabled account values; never send amounts."""
+    from .account_value import account_positions
+
+    store = hass.data.get(DOMAIN, {}).get("store")
+    if not store:
+        return
+    today = dt_util.now().date().isoformat()
+
+    def load_pairs():
+        with connect(store.storage.path) as db:
+            records = objects(db)
+            linked = {r["account_id"] for r in records if r["kind"] == "mapping"}
+            manual_pairs = {
+                (r["base"], r["currency"])
+                for r in records
+                if r["kind"] == "rate" and r.get("source") == "manual" and r["date"] == today
+            }
+            pairs = set()
+            for acc in records:
+                if acc["kind"] != "account" or acc.get("archived"):
+                    continue
+                if account_id and acc["id"] != account_id:
+                    continue
+                if not (acc.get("sensor_currency") or acc.get("publish_sensors")):
+                    continue
+                target = acc.get("sensor_currency") or acc["currency"]
+                positions, _ = account_positions(db, acc, today, acc["id"] in linked)
+                units = {acc["currency"], *(p["instrument"]["currency"] for p in positions)}
+                pairs.update(
+                    (acc["owner"], unit, target)
+                    for unit in units - {target}
+                    if (unit, target) not in manual_pairs and (target, unit) not in manual_pairs
+                )
+            return sorted(pairs)
+
+    checked = hass.data[DOMAIN].setdefault("account_rate_checks", {})
+    for owner, base, target in await hass.async_add_executor_job(load_pairs):
+        key = (owner, base, target)
+        now = time.monotonic()
+        if checked.get(key, 0) > now:
+            continue
+        try:
+            await provider_command(hass, owner, "provider_rates", {"base": base, "currency": target})
+        except ValidationError, aiohttp.ClientError, TimeoutError, KeyError, ValueError, TypeError:
+            checked[key] = now + 15 * 60
+        else:
+            checked[key] = now + 6 * 3600
+
+
 def setup_refresh(hass, entry):
     running = asyncio.Lock()
+    active_tasks = set()
+    quote_attempts = {}
 
-    async def refresh(_now):
+    async def refresh(_now=None):
         if running.locked():
             return
+        task = asyncio.current_task()
+        active_tasks.add(task)
+        try:
+            await run_refresh(_now)
+        finally:
+            active_tasks.discard(task)
+
+    async def run_refresh(_now):
         async with running:
             store = hass.data.get(DOMAIN, {}).get("store")
             if not store:
@@ -745,35 +825,60 @@ def setup_refresh(hass, entry):
                     obj["kind"] == "connection"
                     and obj.get("enabled", True)
                     and obj.get("api_key")
-                    and obj.get("last_sync") != today
+                    and obj.get("auto_refresh", True)
                 ):
-                    jobs.append((obj, "provider_sync", {"connection_id": obj["id"], "automatic": True}))
-                if obj["kind"] == "instrument" and obj.get("auto_quotes") and obj.get("quote_checked") != today:
+                    last = dt_util.parse_datetime(obj.get("last_auto_attempt", ""))
+                    due = (
+                        not last
+                        or (dt_util.utcnow() - dt_util.as_utc(last)).total_seconds()
+                        >= obj.get("refresh_interval", 60) * 60
+                    )
+                    if _now is None or due:
+                        jobs.append((obj, "provider_sync", {"connection_id": obj["id"], "automatic": True}))
+                if (
+                    obj["kind"] == "instrument"
+                    and obj.get("auto_quotes")
+                    and obj.get("quote_checked") != today
+                    and quote_attempts.get(obj["id"], 0) <= time.monotonic()
+                ):
+                    quote_attempts[obj["id"]] = time.monotonic() + 3600
                     jobs.append((obj, "provider_quote", {"instrument_id": obj["id"]}))
-            for preferences in records:
-                if preferences["kind"] == "preferences" and preferences.get("auto_rates"):
-                    owner, target = preferences["owner"], preferences["currency"]
-                    currencies = {
-                        r["currency"]
-                        for r in records
-                        if r["kind"] in ("account", "instrument", "asset") and r["owner"] == owner
-                    }
-                    for base in currencies - {target}:
-                        jobs.append((preferences, "provider_rates", {"base": base, "currency": target, "date": today}))
+            # Global reports keep their opt-in rate refresh; run this part at most every six hours.
+            runtime = hass.data[DOMAIN]
+            now = time.monotonic()
+            if runtime.get("report_rates_after", 0) <= now:
+                runtime["report_rates_after"] = now + 6 * 3600
+                for preferences in records:
+                    if preferences["kind"] == "preferences" and preferences.get("auto_rates"):
+                        owner, target = preferences["owner"], preferences["currency"]
+                        currencies = {
+                            r["currency"]
+                            for r in records
+                            if r["kind"] in ("account", "instrument", "asset") and r["owner"] == owner
+                        }
+                        for base in currencies - {target}:
+                            jobs.append((preferences, "provider_rates", {"base": base, "currency": target}))
             for obj, command, payload in jobs:
-                try:
-                    await provider_command(hass, obj["owner"], command, payload)
-                except ValidationError, aiohttp.ClientError, TimeoutError, KeyError, ValueError:
+                if command == "provider_sync":
 
-                    def failed(record=obj):
+                    def mark_attempt(record=obj):
                         with connect(store.storage.path) as db:
                             fresh = get(db, record["id"])
-                            fresh["status" if fresh["kind"] == "connection" else "quote_status"] = "unavailable"
+                            fresh["last_auto_attempt"] = dt_util.utcnow().isoformat()
                             put(db, fresh)
 
-                    await hass.async_add_executor_job(failed)
+                    await hass.async_add_executor_job(mark_attempt)
+                try:
+                    await provider_command(hass, obj["owner"], command, payload)
+                except ValidationError, aiohttp.ClientError, TimeoutError, KeyError, ValueError, TypeError:
+                    # provider_command records failures; keep processing other connections.
+                    continue
+            await refresh_account_rates(hass)
             from .finance_api import refresh_context
 
             await refresh_context(hass)
 
-    entry.async_on_unload(async_track_time_interval(hass, refresh, timedelta(hours=6)))
+    entry.async_on_unload(async_track_time_interval(hass, refresh, timedelta(minutes=1)))
+    task = hass.async_create_background_task(refresh(), "autonomous_budget_provider_refresh")
+    entry.async_on_unload(task.cancel)
+    entry.async_on_unload(lambda: [task.cancel() for task in active_tasks])

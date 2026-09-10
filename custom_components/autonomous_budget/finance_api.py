@@ -9,9 +9,10 @@ from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, SIGNAL_CHANGED
+from .account_value import account_value
+from .const import CURRENCIES, DOMAIN, SIGNAL_CHANGED
 from .database import connect
-from .finance import Finance, balance, bank_amount, convert, get, money, number, objects
+from .finance import Finance, balance, convert, get, money, number, objects
 from .model import ValidationError
 
 
@@ -71,12 +72,7 @@ def budget_context(path, budgets, today):
         # including zero or unknown; manual accounts publish their journal balance.
         bank_linked = {m["account_id"] for m in objects(db, "mapping")}
         sensors = [
-            {
-                "id": a["id"],
-                "name": a["name"],
-                "currency": a["currency"],
-                "balance": bank_amount(a) if a["id"] in bank_linked else money(balance(db, a, today), a["currency"]),
-            }
+            account_value(db, a, today, a["id"] in bank_linked)
             for a in objects(db, "account")
             if a.get("publish_sensors")
         ]
@@ -142,6 +138,10 @@ async def websocket_finance(hass, connection, msg):
             from .providers import provider_command
 
             result = await provider_command(hass, actor, command, payload)
+            if command in ("provider_sync", "provider_map", "provider_create_account"):
+                from .providers import refresh_account_rates
+
+                await refresh_account_rates(hass)
             await refresh_context(hass)
         elif command == "users":
             result = [
@@ -178,6 +178,7 @@ async def websocket_finance(hass, connection, msg):
                 engine.query, actor, command, payload | {"today": dt_util.now().date().isoformat()}
             )
             if command == "snapshot":
+                result["currencies"] = sorted(CURRENCIES)
                 result["default_view"] = getattr(store, "start_view", "budgets")
                 users = {
                     u.id: u.name for u in await hass.auth.async_get_users() if u.is_active and not u.system_generated
@@ -194,6 +195,10 @@ async def websocket_finance(hass, connection, msg):
                 result = await hass.async_add_executor_job(engine.mutate, actor, command, payload, msg.get("revision"))
                 if command == "restore":
                     store.data = await store.storage.async_load()
+                if command == "save" and payload.get("kind") == "account":
+                    from .providers import refresh_account_rates
+
+                    await refresh_account_rates(hass, result["id"])
                 await refresh_context(hass)
         connection.send_result(msg["id"], result)
     except (ValidationError, KeyError, ValueError, TypeError) as err:

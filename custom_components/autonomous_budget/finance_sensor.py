@@ -44,6 +44,9 @@ class FinanceSensor(SensorEntity):
             self._attr_name = self.account["name"]
             self._attr_native_value = self.account["balance"]
             self._attr_native_unit_of_measurement = self.account["currency"]
+        self._attr_extra_state_attributes = {
+            k: v for k, v in (self.account or {}).items() if k not in ("id", "name", "balance", "currency")
+        }
         self._attr_available = self.account is not None
 
     async def async_added_to_hass(self):

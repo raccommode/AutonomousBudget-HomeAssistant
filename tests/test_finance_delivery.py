@@ -435,6 +435,7 @@ async def test_provider_cooldown_and_optional_unsupported_holdings(monkeypatch):
     assert await providers.request(hass, "https://lunchflow.app/api/v1/accounts/1/holdings", optional=True) == {
         "unavailable": True,
         "reason": "unsupported",
+        "http_status": 501,
     }
 
 

@@ -399,6 +399,86 @@ async def test_published_bank_sensor_without_snapshot_does_not_fall_back_to_ledg
     assert sensors[manual["id"]]["balance"] == "75.00"
 
 
+async def test_investment_entity_adds_bank_cash_and_positions_once_then_converts(engine, bank):
+    _, state, command = bank
+    acc = account(engine, type="investment", opening_balance="900", publish_sensors=True, sensor_currency="USD")
+    instrument = engine.mutate(
+        "alice", "save", {"kind": "instrument", "name": "Local stock", "currency": "CAD", "symbol": "LOCAL"}
+    )
+    engine.mutate(
+        "alice",
+        "trade",
+        {
+            "account_id": acc["id"],
+            "instrument_id": instrument["id"],
+            "action": "opening",
+            "date": "2026-01-01",
+            "quantity": "1",
+            "price": "500",
+        },
+    )
+    state["balance"] = {"balance": {"amount": 100, "currency": "CAD"}}
+    state["holdings"] = {
+        "holdings": [
+            {"security": {"name": "Stock", "currency": "CAD"}, "quantity": 2, "price": 150},
+            {"security": {"name": "Bitcoin", "currency": "USD", "type": "crypto"}, "quantity": 0.01, "value": 50},
+        ]
+    }
+    await command("provider_map", account_id=acc["id"], remote_id="42")
+
+    def value():
+        return budget_context(engine.path, [], "2099-01-01")["sensors"][0]
+
+    assert value()["balance"] is None
+    engine.mutate(
+        "alice", "save", {"kind": "rate", "base": "CAD", "currency": "USD", "date": "2026-01-01", "value": "0.75"}
+    )
+    # (CAD 100 cash + CAD 300 stock) * 0.75 + USD 50 crypto; local holdings are not added.
+    assert value()["balance"] == "350.00" and value()["currency"] == "USD"
+    assert value()["calculation"] == "cash_and_market_value"
+    state["holdings"] = {"unavailable": True, "reason": "provider_error", "http_status": 503}
+    await command("provider_sync", automatic=True)
+    assert value()["balance"] == "350.00" and value()["stale"]
+    engine.mutate("alice", "save", {"kind": "account", "id": acc["id"], "sensor_currency": "CAD"})
+    assert value()["balance"] == "466.67"
+    saved = next(o for o in engine.query("alice", "snapshot")["objects"] if o["id"] == acc["id"])
+    assert saved["currency"] == "CAD" and saved["opening_balance"] == "900.00"
+    assert saved["entity_value"]["balance"] == "466.67"
+
+    # Zero cash needs no FX rate; a fully priced position already in the target currency is sufficient.
+    state["balance"] = {"balance": {"amount": 0, "currency": "CAD"}}
+    state["holdings"] = {
+        "holdings": [{"security": {"currency": "EUR", "name": "Euro stock"}, "quantity": 1, "value": 120}]
+    }
+    engine.mutate("alice", "save", {"kind": "account", "id": acc["id"], "sensor_currency": "EUR"})
+    await command("provider_sync", automatic=True)
+    assert value()["balance"] == "120.00" and value()["currency"] == "EUR"
+
+
+async def test_investment_entity_requires_complete_market_values(engine, bank):
+    _, state, command = bank
+    acc = account(engine, type="investment", publish_sensors=True)
+    state["holdings"] = {"unavailable": True}
+    await command("provider_map", account_id=acc["id"], remote_id="42")
+    assert budget_context(engine.path, [], "2099-01-01")["sensors"][0]["balance"] is None
+    state["holdings"] = {"holdings": [{"security": {"currency": "CAD", "name": "Unpriced"}, "quantity": 1}]}
+    await command("provider_sync", automatic=True)
+    assert budget_context(engine.path, [], "2099-01-01")["sensors"][0]["missing"] == ["market_value"]
+    state["holdings"] = {"holdings": []}
+    await command("provider_sync", automatic=True)
+    assert budget_context(engine.path, [], "2099-01-01")["sensors"][0]["balance"] == "800.00"
+
+
+async def test_linked_currency_cannot_be_relabelled_but_entity_can_be_converted(engine, bank):
+    _, _, command = bank
+    acc = account(engine)
+    await command("provider_map", account_id=acc["id"], remote_id="42")
+    with pytest.raises(ValidationError, match="automatic conversion"):
+        engine.mutate("alice", "save", {"kind": "account", "id": acc["id"], "currency": "USD"})
+    converted = engine.mutate("alice", "save", {"kind": "account", "id": acc["id"], "sensor_currency": "USD"})
+    assert converted["currency"] == "CAD" and converted["sensor_currency"] == "USD"
+
+
 async def test_celiapp_links_when_optional_holdings_or_balance_are_unavailable(engine, bank):
     _, state, command = bank
     state["holdings"] = {"unavailable": True}
@@ -434,11 +514,15 @@ async def test_optional_provider_failure_does_not_block_account_link(monkeypatch
     monkeypatch.setattr(providers, "async_get_clientsession", lambda hass: session)
     assert await providers.request(
         SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/holdings", optional=True
-    ) == {"unavailable": True, "reason": {404: "not_found", 429: "rate_limited"}.get(status, "provider_error")}
+    ) == {
+        "unavailable": True,
+        "reason": {404: "not_found", 429: "rate_limited"}.get(status, "provider_error"),
+        "http_status": status,
+    }
 
 
 @pytest.mark.parametrize("status", [401, 403])
-async def test_optional_provider_request_still_rejects_invalid_credentials(monkeypatch, status):
+async def test_optional_auth_failure_is_explicit_and_required_requests_still_fail(monkeypatch, status):
     class Response:
         headers = {}
 
@@ -453,10 +537,15 @@ async def test_optional_provider_request_still_rejects_invalid_credentials(monke
     monkeypatch.setattr(
         providers, "async_get_clientsession", lambda hass: SimpleNamespace(get=lambda *args, **kwargs: response)
     )
+    assert await providers.request(
+        SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/holdings", optional=True
+    ) == {
+        "unavailable": True,
+        "reason": "unauthorized" if status == 401 else "forbidden",
+        "http_status": status,
+    }
     with pytest.raises(ValidationError, match="authorization"):
-        await providers.request(
-            SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/holdings", optional=True
-        )
+        await providers.request(SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts")
 
 
 async def test_optional_snapshot_timeout_is_non_blocking(monkeypatch):

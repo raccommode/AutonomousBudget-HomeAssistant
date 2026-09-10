@@ -370,11 +370,17 @@ class Finance:
                 ]
                 records = include_category_parents(db, records)
                 linked = {o["account_id"] for o in records if o["kind"] == "mapping"}
+                from .account_value import account_value
+
                 for obj in records:
                     obj.pop("api_key", None)
                     if obj["kind"] == "account":
                         obj["balance"] = money(balance(db, obj, p.get("today")), obj["currency"])
                         obj["bank_amount"] = bank_amount(obj) if obj["id"] in linked else None
+                        if obj.get("publish_sensors") or obj.get("sensor_currency"):
+                            obj["entity_value"] = account_value(
+                                db, obj, p.get("today", date.today().isoformat()), obj["id"] in linked
+                            )
                         effective = account(db, obj["id"], actor)
                         obj["sharing"] = effective.get("sharing", {})
                         obj["can_write"] = allowed(effective, actor, True)
@@ -904,6 +910,10 @@ class Finance:
                 "bank_holdings_status",
                 "bank_sync_error",
                 "bank_amount",
+                "entity_value",
+                "bank_checked_at",
+                "bank_attempted_at",
+                "bank_balance_http_status",
             ):
                 if old and field in old:
                     obj[field] = old[field]
@@ -918,6 +928,15 @@ class Finance:
             obj["assigned_user_id"] = assigned
             obj["name"] = label(obj.get("name"))
             obj["currency"] = currency(obj.get("currency"))
+            obj["sensor_currency"] = currency(obj["sensor_currency"]) if obj.get("sensor_currency") else None
+            if (
+                old
+                and obj["currency"] != old["currency"]
+                and any(m["account_id"] == obj["id"] for m in objects(db, "mapping"))
+            ):
+                raise ValidationError(
+                    "Disconnect the bank account before changing its currency. Use automatic conversion for another display currency."
+                )
             obj["type"] = obj.get("type", "checking")
             if obj["type"] not in ACCOUNT_TYPES:
                 raise ValidationError("Invalid account type.")
@@ -1033,6 +1052,11 @@ class Finance:
                 raise ValidationError("The exchange rate must be positive.")
             obj["source"] = "manual"
         elif kind == "connection":
+            for field in ("last_sync", "last_sync_at", "last_auto_attempt", "status"):
+                if old and field in old:
+                    obj[field] = old[field]
+                else:
+                    obj.pop(field, None)
             obj["name"] = label(obj.get("name", "Lunch Flow"))
             obj["provider"] = "lunchflow"
             if (not old or obj.get("enabled", True) or "api_key" in p) and (
@@ -1040,6 +1064,13 @@ class Finance:
             ):
                 raise ValidationError("A Lunch Flow API key is required.")
             obj["sharing"] = {}
+            if not isinstance(obj.get("auto_refresh", True), bool):
+                raise ValidationError("Choose a valid switch value.")
+            obj["auto_refresh"] = obj.get("auto_refresh", True)
+            interval = obj.get("refresh_interval", 60)
+            if isinstance(interval, bool) or str(interval) not in ("15", "30", "60", "180", "360", "1440"):
+                raise ValidationError("Choose a valid refresh interval.")
+            obj["refresh_interval"] = int(interval)
         elif kind == "preferences":
             obj["id"] = "preferences:" + actor
             obj["currency"] = currency(obj.get("currency", "CAD"))

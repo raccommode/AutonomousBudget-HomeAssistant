@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0 — 2026-09-10
+
+- Refresh Lunch Flow automatically at startup and every hour by default. Add per-connection automatic refresh controls with 15-minute, 30-minute, hourly, 3-hour, 6-hour and daily options. Retry partial and failed connections on the next interval, serialize overlapping synchronizations, and cancel active scheduled work on unload. Initial journal imports still require review.
+- Replace typed currency codes with localized currency selectors. Add **Convert automatically** and a target-currency selector to account forms, independently of reporting preferences. Fetch needed exchange rates automatically and publish the converted amount and currency through the existing Home Assistant entity.
+- Include cash plus stock, fund and cryptocurrency market values in investment account entities. Use the bank positions once, convert components before rounding, retain dated snapshots during outages, and report unknown totals when a required balance, valuation or rate is missing.
+- Show the entity value in account pages, precise synchronization/attempt times, HTTP failure codes and account-specific access errors. Distinguish accounts with no received bank balance from accounts retaining a previous value. Optional account failures no longer interrupt the remaining bank snapshots.
+- Preserve account currencies, journal records, budget calculations and entity IDs. Add scheduler, valuation, conversion, backup and real Home Assistant browser coverage in English and French.
+
 ## 1.4.1 — 2026-09-10
 
 - Fix published Home Assistant account sensors showing the journal balance (often zero) while Lunch Flow account pages show a different bank balance. Connected account sensors now use the latest received bank balance, matching the panel; manual and unlinked accounts use the journal balance.

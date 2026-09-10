@@ -1,6 +1,7 @@
 """Lunch Flow account lifecycle, full history and broker position snapshots."""
 
 import asyncio
+import json
 import logging
 from types import SimpleNamespace
 
@@ -516,7 +517,9 @@ async def test_optional_provider_failure_does_not_block_account_link(monkeypatch
         SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/holdings", optional=True
     ) == {
         "unavailable": True,
-        "reason": {404: "not_found", 429: "rate_limited"}.get(status, "provider_error"),
+        "reason": {400: "bad_request", 422: "bad_request", 404: "not_found", 429: "rate_limited"}.get(
+            status, "provider_error"
+        ),
         "http_status": status,
     }
 
@@ -564,6 +567,83 @@ async def test_optional_snapshot_timeout_is_non_blocking(monkeypatch):
     ) == {"unavailable": True, "reason": "network"}
     with pytest.raises(TimeoutError):
         await providers.request(SimpleNamespace(data={}), "https://lunchflow.app/api/v1/accounts/42/transactions")
+
+
+@pytest.mark.parametrize("status,reason", [(400, "bad_request"), (422, "bad_request"), (500, "provider_error")])
+async def test_provider_error_body_is_preserved_without_key_and_status_is_specific(monkeypatch, status, reason):
+    raw = json.dumps(
+        {
+            "error": "Account restriction",
+            "message": "Balance access requires reconnection. Key fixture-key; https://example.test/?token=secret",
+        }
+    ).encode()
+
+    class Content:
+        async def readexactly(self, limit):
+            raise asyncio.IncompleteReadError(raw, limit)
+
+    class Response:
+        headers = {}
+        content = Content()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+    response = Response()
+    response.status = status
+    monkeypatch.setattr(
+        providers, "async_get_clientsession", lambda hass: SimpleNamespace(get=lambda *a, **kw: response)
+    )
+    result = await providers.request(
+        SimpleNamespace(data={}),
+        "https://lunchflow.app/api/v1/accounts/42/balance",
+        headers={"x-api-key": "fixture-key"},
+        optional=True,
+    )
+    assert result["reason"] == reason and result["http_status"] == status
+    assert "Balance access requires reconnection" in result["detail"]
+    assert "fixture-key" not in result["detail"] and "https://" not in result["detail"]
+
+
+@pytest.mark.parametrize("raw", [b"<html>Bad request</html>", b"[1,2]", b"{}", b"x" * 4097])
+async def test_invalid_or_large_error_body_keeps_http_status(raw):
+    class Content:
+        async def readexactly(self, limit):
+            if len(raw) >= limit:
+                return raw[:limit]
+            raise asyncio.IncompleteReadError(raw, limit)
+
+    result = await providers.error_response(SimpleNamespace(status=400, content=Content()), {}, "bad_request")
+    assert result == {"unavailable": True, "reason": "bad_request", "http_status": 400}
+
+
+async def test_error_detail_is_previewed_saved_and_cleared_after_recovery(engine, bank):
+    _, state, command = bank
+    acc = account(engine, publish_sensors=True)
+    state["balance"] = {
+        "unavailable": True,
+        "http_status": 400,
+        "reason": "bad_request",
+        "detail": "Balance access unavailable for this account.",
+    }
+    await command("provider_map", account_id=acc["id"], remote_id="42")
+    snapshot = next(o for o in engine.query("alice", "snapshot")["objects"] if o["id"] == acc["id"])
+    assert snapshot["bank_balance_detail"] == state["balance"]["detail"]
+    assert snapshot["entity_value"]["balance"] is None and not snapshot["entity_value"]["stale"]
+    preview = await command("provider_preview")
+    assert preview["warnings"][0]["detail"] == state["balance"]["detail"]
+    assert preview["warnings"][0]["http_status"] == 400
+    engine.mutate("alice", "save", {"kind": "account", "id": acc["id"], "bank_balance_detail": "Forged"})
+    with connect(engine.path) as db:
+        assert get(db, acc["id"])["bank_balance_detail"] == state["balance"]["detail"]
+    state["balance"] = {"balance": {"amount": 80, "currency": "CAD"}}
+    await command("provider_sync", automatic=True)
+    snapshot = next(o for o in engine.query("alice", "snapshot")["objects"] if o["id"] == acc["id"])
+    assert snapshot["bank_balance_detail"] is None and snapshot["bank_balance_http_status"] is None
+    assert snapshot["entity_value"]["balance"] == "80.00"
 
 
 async def test_one_account_transaction_outage_does_not_block_other_accounts(engine, bank, monkeypatch):

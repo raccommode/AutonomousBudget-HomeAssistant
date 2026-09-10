@@ -914,6 +914,9 @@ class Finance:
                 "bank_checked_at",
                 "bank_attempted_at",
                 "bank_balance_http_status",
+                "bank_balance_detail",
+                "bank_holdings_detail",
+                "bank_holdings_http_status",
             ):
                 if old and field in old:
                     obj[field] = old[field]

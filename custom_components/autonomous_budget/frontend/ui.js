@@ -1,4 +1,4 @@
-import { esc } from "./shared.js?v=1.5.0";
+import { esc } from "./shared.js?v=1.5.1";
 
 /** Shared workspace primitives. Page-specific CSS should only define its layout. */
 export const pageHeader = (title, description, actions = "") =>

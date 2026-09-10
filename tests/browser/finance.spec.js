@@ -810,3 +810,30 @@ for (const french of [false, true]) {
     await f.evaluate(async(el,id)=>{await el.api("save",{kind:"connection",id,auto_refresh:false});},connection.id);
   });
 }
+
+for (const french of [false,true]) {
+  test(`${french ? "French" : "English"} provider rejection details are visible and escaped`, async ({page}) => {
+    if(french) await page.setViewportSize({width:390,height:844});
+    const app=page.locator("autonomous-budget-panel");
+    await app.getByRole("button",{name:french ? "Comptes" : "Accounts",exact:true}).click();
+    const f=page.locator("autonomous-finance-panel");
+    await f.evaluate(el=>{
+      const acc={id:"error-fixture",kind:"account",name:"Example account",type:"checking",currency:"CAD",balance:"0.00",bank_amount:null,bank_balance_status:"unavailable",bank_balance_reason:"bad_request",bank_balance_http_status:400,bank_balance_detail:'Account restriction: <img src=x onerror="window.providerInjected=true">',can_write:false};
+      el.records=[acc,{id:"mapping-fixture",kind:"mapping",account_id:acc.id,remote_name:"Example",remote_id:"42"}];
+      el.render();
+    });
+    const error=f.locator(".account-card .error");
+    await expect(error).toContainText("HTTP 400");
+    await expect(error).toContainText(french ? "Lunch Flow a rejeté" : "Lunch Flow rejected");
+    await expect(error).toContainText(french ? "Réponse de Lunch Flow" : "Lunch Flow response");
+    await expect(error).toContainText("Account restriction: <img");
+    await expect(error.locator("img")).toHaveCount(0);
+    expect(await page.evaluate(()=>window.providerInjected)).toBeUndefined();
+    await f.evaluate(el=>{
+      el.records[0].bank_balance_detail="Balance access is not available for this account.";
+      el.render();
+    });
+    await expect(error).toContainText("Balance access is not available for this account.");
+    await page.screenshot({path:`test-results/provider-error-${french ? "fr" : "en"}.png`,fullPage:true});
+  });
+}

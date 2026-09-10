@@ -50,8 +50,12 @@ def account_value(db, acc, today, linked):
         "stale": bool(
             linked
             and (
-                acc.get("bank_balance_status") == "unavailable"
-                or (acc["type"] == "investment" and acc.get("bank_holdings_status") == "unavailable")
+                (cash is not None and acc.get("bank_balance_status") == "unavailable")
+                or (
+                    acc["type"] == "investment"
+                    and acc.get("bank_positions_enabled")
+                    and acc.get("bank_holdings_status") == "unavailable"
+                )
             )
         ),
         "bank_checked": acc.get("bank_checked_at") or acc.get("bank_checked"),

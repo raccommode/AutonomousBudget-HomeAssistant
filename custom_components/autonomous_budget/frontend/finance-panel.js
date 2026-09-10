@@ -1,6 +1,6 @@
-import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.5.0";
+import { BudgetLiveElement, baseCSS, esc, money } from "./shared.js?v=1.5.1";
 
-import { pageHeader, workspaceCSS } from "./ui.js?v=1.5.0";
+import { pageHeader, workspaceCSS } from "./ui.js?v=1.5.1";
 
 const names = {
   overview: "Overview",
@@ -460,6 +460,7 @@ export class FinancePanel extends BudgetLiveElement {
         "The bank provider does not support this data for this account.",
       rate_limited:
         "Lunch Flow is limiting requests. Wait before synchronizing again.",
+      bad_request: "Lunch Flow rejected this account request. Its response below may explain the account restriction or required correction.",
       provider_error:
         "Lunch Flow could not retrieve this data from the bank. Check the bank connection in Lunch Flow and retry.",
       unauthorized: "The Lunch Flow API key is no longer authorized. Check the connection in Lunch Flow.",
@@ -469,13 +470,16 @@ export class FinancePanel extends BudgetLiveElement {
     };
     return messages[reason] ? this.t(messages[reason]) : "";
   }
+  providerDetail(detail, status) {
+    return `${status ? ` <span translate="no">HTTP ${esc(status)}</span>` : ""}${detail ? ` <span>Lunch Flow response</span>: <span translate="no">${esc(detail)}</span>` : ""}`;
+  }
   accountBalance(acc) {
     const linked = this.list("mapping").some((m) => m.account_id === acc.id);
     const entity = acc.entity_value;
     const valuation = entity ? `<div class="entity-valuation"><p class="muted"><span>Home Assistant entity value</span>: <strong>${this.m(entity.balance, entity.currency)}</strong></p>${entity.calculation === "cash_and_market_value" ? '<small>Cash + investment market value</small>' : ""}${entity.missing.length ? '<p class="error">Some balances, market values or exchange rates are missing. The total is unknown until they are available.</p>' : ""}${entity.stale ? '<p class="muted small">This value includes the last available bank data.</p>' : ""}</div>` : "";
     if (!linked)
       return `<p class="metric">${this.m(acc.balance, acc.currency)}</p>${valuation}`;
-    return `<span class="muted">Bank balance</span><p class="metric">${this.m(acc.bank_amount, acc.currency)}</p><p class="muted"><span>Ledger balance</span>: ${this.m(acc.balance, acc.currency)}</p>${acc.bank_checked ? `<small><span>Last synchronization</span> ${esc(this.dateTime(acc.bank_checked_at || acc.bank_checked))}</small>` : ""}${acc.bank_balance_status === "unavailable" ? `<p class="error"><span>${acc.bank_amount == null ? "Bank balance unavailable. No valid balance has been received yet." : "Bank balance unavailable. The last received value is retained."}</span> ${esc(this.providerReason(acc.bank_balance_reason))}${acc.bank_balance_http_status ? ` <span translate="no">HTTP ${esc(acc.bank_balance_http_status)}</span>` : ""}</p>` : ""}${acc.bank_holdings_status === "unavailable" ? `<p class="muted"><span>Investment holdings unavailable. The account remains connected.</span> ${esc(this.providerReason(acc.bank_holdings_reason))}</p>` : ""}${acc.bank_sync_error ? '<p class="error">Transactions could not be retrieved. Try synchronizing again.</p>' : ""}${acc.bank_attempted_at ? `<p class="muted small"><span>Last attempt</span>: ${esc(this.dateTime(acc.bank_attempted_at))}</p>` : ""}${valuation}`;
+    return `<span class="muted">Bank balance</span><p class="metric">${this.m(acc.bank_amount, acc.currency)}</p><p class="muted"><span>Ledger balance</span>: ${this.m(acc.balance, acc.currency)}</p>${acc.bank_checked ? `<small><span>Last synchronization</span> ${esc(this.dateTime(acc.bank_checked_at || acc.bank_checked))}</small>` : ""}${acc.bank_balance_status === "unavailable" ? `<p class="error"><span>${acc.bank_amount == null ? "Bank balance unavailable. No valid balance has been received yet." : "Bank balance unavailable. The last received value is retained."}</span> ${esc(this.providerReason(acc.bank_balance_reason))}${this.providerDetail(acc.bank_balance_detail, acc.bank_balance_http_status)}</p>` : ""}${acc.bank_holdings_status === "unavailable" ? `<p class="muted"><span>Investment holdings unavailable. The account remains connected.</span> ${esc(this.providerReason(acc.bank_holdings_reason))}${this.providerDetail(acc.bank_holdings_detail, acc.bank_holdings_http_status)}</p>` : ""}${acc.bank_sync_error ? '<p class="error">Transactions could not be retrieved. Try synchronizing again.</p>' : ""}${acc.bank_attempted_at ? `<p class="muted small"><span>Last attempt</span>: ${esc(this.dateTime(acc.bank_attempted_at))}</p>` : ""}${valuation}`;
   }
   accountConnectionPicker() {
     const form = this.shadowRoot.querySelector("dialog form");
@@ -1893,7 +1897,7 @@ export class FinancePanel extends BudgetLiveElement {
       const data = await this.api("provider_preview", payload);
       this.form(
         "Preview synchronization",
-        `<div class="full">${(data.warnings || []).map((w) => `<p class="error"><span translate="no">${esc(w.name)}</span>: ${esc(this.t(w.message))} ${esc(this.providerReason(w.reason))}</p>`).join("")}</div><p class="full">${data.added} <span>new transactions</span> · ${data.updated} <span>updates</span> · ${data.conflicts} <span>conflicts</span></p><div class="full table"><table>${data.rows.map((r) => `<tr><td>${r.date}</td><td translate="no">${esc(r.description)}</td><td>${esc(r.amount)}</td></tr>`).join("")}</table></div>`,
+        `<div class="full">${(data.warnings || []).map((w) => `<p class="error"><span translate="no">${esc(w.name)}</span>: ${esc(this.t(w.message))} ${esc(this.providerReason(w.reason))}${this.providerDetail(w.detail, w.http_status)}</p>`).join("")}</div><p class="full">${data.added} <span>new transactions</span> · ${data.updated} <span>updates</span> · ${data.conflicts} <span>conflicts</span></p><div class="full table"><table>${data.rows.map((r) => `<tr><td>${r.date}</td><td translate="no">${esc(r.description)}</td><td>${esc(r.amount)}</td></tr>`).join("")}</table></div>`,
         () =>
           this.api("provider_sync", {
             ...payload,

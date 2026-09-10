@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import re
 import time
 from datetime import date, timedelta
 
@@ -15,6 +16,43 @@ from .const import DOMAIN
 from .database import connect
 from .finance import Finance, account, day, get, money, number, objects, put, require, transaction, uid
 from .model import ValidationError
+
+
+async def error_response(response, headers, reason):
+    """Keep bounded provider diagnostics for the account UI, without credentials."""
+    result = {"unavailable": True, "reason": reason, "http_status": response.status}
+    try:
+        try:
+            raw = await response.content.readexactly(4097)
+        except asyncio.IncompleteReadError as err:
+            raw = err.partial
+        if len(raw) > 4096:
+            return result
+        data = json.loads(raw)
+    except ValueError, UnicodeError, aiohttp.ClientError, TimeoutError, AttributeError:
+        return result
+    if not isinstance(data, dict):
+        return result
+    parts = []
+    for value in (data.get("message"), data.get("error_description"), data.get("error")):
+        if isinstance(value, dict):
+            value = value.get("message")
+        if isinstance(value, str) and value.strip() and value not in parts:
+            parts.append(value)
+    detail = " ".join(parts)
+    for key, secret in (headers or {}).items():
+        if key.lower() in ("x-api-key", "authorization") and secret:
+            detail = detail.replace(secret, "[redacted]")
+            if key.lower() == "authorization":
+                detail = detail.replace(secret.split()[-1], "[redacted]")
+    detail = re.sub(r"https?://\S+", "[redacted URL]", detail)
+    detail = re.sub(r"(?i)(?:bearer\s+|(?:api[_ -]?key|token|secret)\s*[:=]\s*)[^\s,;]+", "[redacted]", detail)
+    detail = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[redacted email]", detail)
+    detail = re.sub(r"[A-Za-z0-9_=-]{24,}", "[redacted]", detail)
+    detail = " ".join(detail.split())[:512]
+    if detail:
+        result["detail"] = detail
+    return result
 
 
 async def request(hass, url, headers=None, params=None, optional=False):
@@ -49,11 +87,7 @@ async def _request(hass, url, headers=None, params=None, optional=False):
     session = async_get_clientsession(hass)
     async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
         if optional and response.status in (404, 501):
-            return {
-                "unavailable": True,
-                "reason": "not_found" if response.status == 404 else "unsupported",
-                "http_status": response.status,
-            }
+            return await error_response(response, headers, "not_found" if response.status == 404 else "unsupported")
         if response.status == 429:
             try:
                 delay = min(3600, max(60, int(response.headers.get("Retry-After", "60"))))
@@ -61,19 +95,19 @@ async def _request(hass, url, headers=None, params=None, optional=False):
                 delay = 60
             cooldown[origin] = now + delay
             if optional:
-                return {"unavailable": True, "reason": "rate_limited", "http_status": 429}
+                return await error_response(response, headers, "rate_limited")
             raise ValidationError("The provider is rate limited. Try again later; the last values were preserved.")
         if response.status in (401, 403):
             if optional:
-                return {
-                    "unavailable": True,
-                    "reason": "unauthorized" if response.status == 401 else "forbidden",
-                    "http_status": response.status,
-                }
+                return await error_response(
+                    response, headers, "unauthorized" if response.status == 401 else "forbidden"
+                )
             raise ValidationError("Connection authorization failed. Check your API key and account access.")
         if response.status != 200:
             if optional:
-                return {"unavailable": True, "reason": "provider_error", "http_status": response.status}
+                return await error_response(
+                    response, headers, "bad_request" if response.status in (400, 422) else "provider_error"
+                )
             raise ValidationError("The provider is temporarily unavailable.")
         data = await response.json()
         if not headers:
@@ -90,6 +124,7 @@ def store_bank_snapshot(acc, balance_response, holdings=None):
     acc["bank_balance_http_status"] = (
         balance_response.get("http_status") if isinstance(balance_response, dict) else None
     )
+    acc["bank_balance_detail"] = balance_response.get("detail") if isinstance(balance_response, dict) else None
     bank = balance_response.get("balance") if isinstance(balance_response, dict) else None
     try:
         valid = isinstance(bank, dict) and bank.get("currency", "").strip().upper() == acc["currency"]
@@ -112,6 +147,8 @@ def store_bank_snapshot(acc, balance_response, holdings=None):
         acc["bank_checked"] = when
         acc["bank_checked_at"] = dt_util.utcnow().isoformat()
     if holdings is not None:
+        acc["bank_holdings_detail"] = holdings.get("detail") if isinstance(holdings, dict) else None
+        acc["bank_holdings_http_status"] = holdings.get("http_status") if isinstance(holdings, dict) else None
         from .investments import bank_positions
 
         try:
@@ -246,6 +283,8 @@ def apply_sync(path, actor, connection_id, batches, preview_only=False):
                             "name": acc["name"],
                             "message": message,
                             "reason": snapshot.get(f"bank_{part}_reason"),
+                            "detail": snapshot.get(f"bank_{part}_detail"),
+                            "http_status": snapshot.get(f"bank_{part}_http_status"),
                         }
                     )
             for incoming in batch["transactions"]:

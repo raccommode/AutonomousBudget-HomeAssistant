@@ -1,5 +1,7 @@
 /** English source strings and French UI translations. User content is excluded. */
 const fr = {
+  "Lunch Flow rejected this account request. Its response below may explain the account restriction or required correction.": "Lunch Flow a rejeté la requête pour ce compte. Sa réponse ci-dessous peut préciser la restriction du compte ou la correction nécessaire.",
+  "Lunch Flow response": "Réponse de Lunch Flow",
   "Account currency": "Devise du compte",
   "Convert automatically": "Convertir automatiquement",
   "Convert to": "Convertir en",

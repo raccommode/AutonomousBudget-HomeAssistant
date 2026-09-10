@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1 — 2026-09-10
+
+- Distinguish HTTP 400/422 account-request rejections from bank/provider server failures. Preserve the bounded JSON error explanation from Lunch Flow and display it with the HTTP status on account pages and synchronization previews, including holdings errors.
+- Redact request credentials, token patterns, URLs and email addresses from provider details; render them as escaped text. Malformed, HTML or oversized error bodies keep a safe status-only fallback. Successful refreshes clear old errors.
+- Do not claim that a last bank value is retained when no valid cash or holdings snapshot has ever been received. Add HTTP error-body, redaction, recovery and bilingual browser rendering tests.
+
 ## 1.5.0 — 2026-09-10
 
 - Refresh Lunch Flow automatically at startup and every hour by default. Add per-connection automatic refresh controls with 15-minute, 30-minute, hourly, 3-hour, 6-hour and daily options. Retry partial and failed connections on the next interval, serialize overlapping synchronizations, and cancel active scheduled work on unload. Initial journal imports still require review.
